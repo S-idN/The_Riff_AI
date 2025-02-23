@@ -60,7 +60,7 @@ export default function AuthCallbackScreen() {
 
   const fetchAccessToken = async (code) => {
     try {
-      const response = await fetch("http://localhost:8000/api/auth/spotify-token/", {
+      const response = await fetch("http://localhost:8000/api/auth/spotify-token/", { // Updated API endpoint
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -87,7 +87,7 @@ export default function AuthCallbackScreen() {
 
   const fetchUserProfile = async (token) => {
     try {
-      const response = await fetch("http://localhost:8000/api/auth/profile/", {
+      const response = await fetch("http://localhost:8000/api/auth/profile/", { // Updated API endpoint
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,

@@ -1,52 +1,59 @@
+import os
+import requests
+from django.http import JsonResponse
 from allauth.socialaccount.providers.spotify.views import SpotifyOAuth2Adapter
 from dj_rest_auth.registration.views import SocialLoginView
-from django.http import JsonResponse
-import requests
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
+
+# Load environment variables
+SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
+SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
+SPOTIFY_REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:8081/auth-callback")
+
+SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
+SPOTIFY_PROFILE_URL = "https://api.spotify.com/v1/me"
+
 
 class SpotifyLogin(SocialLoginView):
     adapter_class = SpotifyOAuth2Adapter
 
     def get_callback_url(self):
-        # Redirect to your frontend after login
-        return "http://localhost:8081/auth-callback"
+        return SPOTIFY_REDIRECT_URI
+
 
 @api_view(["POST"])
 def spotify_callback(request):
     """
-    Handle the Spotify OAuth2 callback and exchange the authorization code for an access token.
+    Handle Spotify OAuth2 callback and exchange the authorization code for an access token.
     """
     code = request.data.get("code")
 
     if not code:
-        return Response(
-            {"error": "Authorization code is required"},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        return Response({"error": "Authorization code is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Exchange the code for an access token
-    token_url = "https://accounts.spotify.com/api/token"
+    # Exchange authorization code for an access token
     payload = {
         "grant_type": "authorization_code",
         "code": code,
-        "redirect_uri": "http://localhost:8081/auth-callback",  # The same URI used during the Spotify OAuth2 flow
-        "client_id": "738024374a41414383cec879914473f6",  # Your Spotify client ID
-        "client_secret": "734582e1bcea4fceb0809bc981b3d45b",  # Your Spotify client secret
+        "redirect_uri": SPOTIFY_REDIRECT_URI,
+        "client_id": SPOTIFY_CLIENT_ID,
+        "client_secret": SPOTIFY_CLIENT_SECRET,
     }
 
-    token_response = requests.post(token_url, data=payload)
+    response = requests.post(SPOTIFY_TOKEN_URL, data=payload)
 
-    if token_response.status_code == 200:
-        token_data = token_response.json()
-        print("Token data:", token_data)  # Debug log
-        return Response(token_data)  # Return the token data (including access_token)
-    else:
-        return Response(
-            {"error": "Failed to exchange code for token", "details": token_response.json()},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+    try:
+        token_data = response.json()
+        if response.status_code == 200:
+            return Response(token_data)  # Successfully authenticated
+        else:
+            return Response({"error": "Failed to exchange token", "details": token_data}, status=response.status_code)
+
+    except requests.exceptions.JSONDecodeError:
+        return Response({"error": "Invalid response from Spotify"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 @api_view(["GET"])
 def spotify_profile(request):
@@ -54,48 +61,46 @@ def spotify_profile(request):
     if not token:
         return Response({"error": "Token is missing in Authorization header"}, status=status.HTTP_400_BAD_REQUEST)
     
-    # Remove 'Bearer ' prefix
+    # Extract Bearer token
     access_token = token.split(" ")[1] if token.startswith("Bearer ") else None
     if not access_token:
         return Response({"error": "Invalid token format"}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Log the token for debugging purposes
-    print(f"Received access token: {access_token}")
-
     # Use Spotify API to fetch the user's profile
     headers = {"Authorization": f"Bearer {access_token}"}
-    spotify_response = requests.get("https://api.spotify.com/v1/me", headers=headers)
-
-    # Log the Spotify response for debugging
-    print(f"Spotify API response: {spotify_response.status_code}, {spotify_response.text}")
+    spotify_response = requests.get(SPOTIFY_PROFILE_URL, headers=headers)
 
     if spotify_response.status_code == 200:
         profile_data = spotify_response.json()
-        display_name = profile_data.get("display_name", profile_data.get("id"))
-        return Response({"display_name": display_name})  # Return the display_name or id if missing
+        display_name = profile_data.get("display_name") or profile_data.get("id")  # Fallback to user ID
+        return Response({"display_name": display_name})
+    elif spotify_response.status_code == 403:
+        return Response({"error": "Access denied. Check Spotify developer settings."}, status=status.HTTP_403_FORBIDDEN)
     else:
         return Response(
             {"error": "Failed to fetch Spotify profile", "details": spotify_response.json()},
-            status=status.HTTP_400_BAD_REQUEST,
+            status=spotify_response.status_code,
         )
 
+
 def refresh_access_token(refresh_token):
-    url = "https://accounts.spotify.com/api/token"
-    headers = {
-        "Content-Type": "application/x-www-form-urlencoded",
-    }
-    data = {
+    """
+    Refresh the Spotify access token.
+    """
+    payload = {
         "grant_type": "refresh_token",
         "refresh_token": refresh_token,
-        "client_id": "738024374a41414383cec879914473f6",  # Your Spotify client ID
-        "client_secret": "734582e1bcea4fceb0809bc981b3d45b",  # Your Spotify client secret
+        "client_id": SPOTIFY_CLIENT_ID,
+        "client_secret": SPOTIFY_CLIENT_SECRET,
     }
 
-    response = requests.post(url, data=data, headers=headers)
+    response = requests.post(SPOTIFY_TOKEN_URL, data=payload, headers={"Content-Type": "application/x-www-form-urlencoded"})
 
-    # Check if the response was successful
-    if response.status_code == 200:
-        return response.json()  # Return the new access token data
-    else:
-        print(f"Error refreshing token: {response.status_code}")
-        return {"error": "Failed to refresh token", "details": response.json()}
+    try:
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return {"error": "Failed to refresh token", "details": response.json()}
+
+    except requests.exceptions.JSONDecodeError:
+        return {"error": "Invalid response from Spotify"}

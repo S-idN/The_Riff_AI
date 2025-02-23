@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { Link, useLocalSearchParams } from "expo-router";
 import "../../global.css";
+import Storage from "./storage";
 
 export default function Index() {
   const [username, setUsername] = useState<string | null>(null);
@@ -17,10 +18,18 @@ export default function Index() {
   const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
-    const storedToken = localStorage.getItem("access_token");
-    if (storedToken) {
-      setToken(storedToken);
-    }
+    const loadToken = async () => {
+      try {
+        const storedToken = await Storage.getItem("access_token");
+        if (storedToken) {
+          setToken(storedToken);
+        }
+      } catch (error) {
+        console.error("Failed to load token:", error);
+      }
+    };
+
+    loadToken();
 
     if (paramsDisplayName) {
       setUsername(paramsDisplayName);
@@ -43,8 +52,9 @@ export default function Index() {
       console.log("Access token:", token);
 
       try {
+        // Replace ngrok link with local link
         const response = await fetch(
-          "http://127.0.0.1:8000/api/auth/profile/",
+          "http://localhost:8000/api/auth/profile/", // Local URL for profile API
           {
             method: "GET",
             headers: {
@@ -73,16 +83,21 @@ export default function Index() {
 
   const handleLogout = async () => {
     try {
-      await fetch("http://127.0.0.1:8000/api/auth/logout/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-      });
+      // Replace ngrok link with local link
+      await fetch(
+        "http://localhost:8000/api/auth/logout/", // Local URL for logout API
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+        }
+      );
     } catch (error) {
       console.error("Error logging out:", error);
     }
 
-    localStorage.removeItem("access_token");
+    await Storage.removeItem("access_token");
+
     setUsername(null);
     setToken(null);
 

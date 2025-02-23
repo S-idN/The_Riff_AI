@@ -4,32 +4,44 @@ import { useRouter } from "expo-router";
 import { Linking } from "react-native";
 import "../../global.css";
 
+interface ErrorResponse {
+  username?: string[];
+  password1?: string[];
+  non_field_errors?: string[];
+}
+
 export default function AuthScreen() {
-  const [isSignup, setIsSignup] = useState(false);
-  const [user, setUser] = useState("");
-  const [pass1, setPass1] = useState("");
-  const [pass2, setPass2] = useState("");
-  const [loading, setLoading] = useState(false); // Loading state
+  const [isSignup, setIsSignup] = useState<boolean>(false);
+  const [user, setUser] = useState<string>("");
+  const [pass1, setPass1] = useState<string>("");
+  const [pass2, setPass2] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false); // Loading state
+  const [errorMessage, setErrorMessage] = useState<string | null>(""); // Type declaration for errorMessage
   const SPOTIFY_CLIENT_ID = "738024374a41414383cec879914473f6";
   const REDIRECT_URI = "http://localhost:8081/auth-callback";
   const router = useRouter();
 
   const handleSpotifyLogin = () => {
     const authUrl = `https://accounts.spotify.com/authorize?client_id=${SPOTIFY_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(
-      "http://localhost:8081/auth-callback"
+      REDIRECT_URI
     )}&scope=user-read-email user-read-private`;
     Linking.openURL(authUrl);
   };
 
   const handleAuth = async () => {
     setLoading(true);
+    setErrorMessage(""); // Clear error message before trying
 
     const url = isSignup
       ? "http://127.0.0.1:8000/api/auth/registration/"
       : "http://127.0.0.1:8000/api/auth/login/";
 
     const payload = isSignup
-      ? { username: user, password1: pass1, password2: pass2 }
+      ? {
+          username: user,
+          password1: pass1,
+          password2: pass2,
+        }
       : { username: user, password: pass1 };
 
     try {
@@ -39,16 +51,26 @@ export default function AuthScreen() {
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
+      const data: ErrorResponse = await response.json();
+
       if (response.ok) {
         console.log(`${isSignup ? "Signup" : "Login"} successful`, data);
-        // Redirect to home page with username directly
         router.push({ pathname: "/", params: { username: user } });
       } else {
         console.error("Auth failed:", data);
+
+        // Extract the first error message from each field if multiple errors exist
+        const errorMessages = Object.values(data)
+          .flat() // Flatten the arrays of errors
+          .filter((msg) => msg) // Remove any undefined/null values
+          .slice(0, 1) // Only keep the first error message (if multiple errors exist)
+          .join(", "); // Join them into one string (although we are keeping just one error here)
+
+        setErrorMessage(errorMessages); // Set error message to be displayed
       }
     } catch (error) {
       console.error("Network error:", error);
+      setErrorMessage("Please check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -67,6 +89,7 @@ export default function AuthScreen() {
         <TextInput
           onChangeText={setUser}
           className="bg-[#960c2d] p-1 mb-2.5 rounded-lg py-1"
+          value={user}
         />
 
         <Text className="text-[#e5d8fc] font-semibold mt-2.5 text-xl">
@@ -76,6 +99,7 @@ export default function AuthScreen() {
           secureTextEntry
           onChangeText={setPass1}
           className="bg-[#960c2d] p-1 mb-5 rounded-lg py-1"
+          value={pass1}
         />
 
         {isSignup && (
@@ -87,6 +111,7 @@ export default function AuthScreen() {
               secureTextEntry
               onChangeText={setPass2}
               className="bg-[#960c2d] p-1 mb-5 rounded-lg py-1"
+              value={pass2}
             />
           </>
         )}
@@ -100,6 +125,13 @@ export default function AuthScreen() {
             {loading ? "Loading..." : isSignup ? "Sign Up" : "Login"}
           </Text>
         </TouchableOpacity>
+
+        {/* Display error message if there is one */}
+        {errorMessage && (
+          <Text className="text-[#ff0000] font-semibold text-lg mt-4">
+            {errorMessage}
+          </Text>
+        )}
 
         <TouchableOpacity
           onPress={() => setIsSignup(!isSignup)}
