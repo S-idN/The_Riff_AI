@@ -25,8 +25,7 @@ SECRET_KEY = 'django-insecure-ck(7zol&!958*)6sfy(g_*w)rs@u7k8792lp%p^)1pe65#py)1
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
+ALLOWED_HOSTS = ["localhost","127.0.0.1"]
 
 # Application definition
 
@@ -38,6 +37,16 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'corsheaders',
+    'rest_framework',
+    'rest_framework.authtoken',
+    'dj_rest_auth',
+    'userauth',
+    'django.contrib.sites', 
+    'dj_rest_auth.registration',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.spotify'
 ]
 
 MIDDLEWARE = [
@@ -46,6 +55,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'corsheaders.middleware.CorsMiddleware',
@@ -54,9 +64,9 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'backendRiffRoot.urls'
 
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:5173', #if something breaks check this / change this to allow all origins (CORS_ALLOW_ALL_ORIGINS = True)
-]
+CORS_ALLOW_ALL_ORIGINS = True
+
+CORS_ALLOW_CREDENTIALS = True
 
 TEMPLATES = [
     {
@@ -128,3 +138,74 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+REST_AUTH = {
+    'USE_JWT': True,
+    'JWT_AUTH_COOKIE': 'djangojwtauth_cookie',
+    'JWT_AUTH_REFRESH_COOKIE': 'djangojwtauth_refresh_cookie'
+}
+
+REST_AUTH_REGISTER_SERIALIZERS = {
+    "REGISTER_SERIALIZER": "dj_rest_auth.registration.serializers.RegisterSerializer",
+}
+
+
+SITE_ID = 1
+
+ACCOUNT_EMAIL_VERIFICATION = "none"  
+
+ACCOUNT_ADAPTER = "allauth.account.adapter.DefaultAccountAdapter"
+SOCIALACCOUNT_ADAPTER = "allauth.socialaccount.adapter.DefaultSocialAccountAdapter"
+SOCIALACCOUNT_PROVIDERS = {
+    "spotify": {
+        "SCOPE": ["user-read-email", "user-read-private"],
+        "AUTH_PARAMS": {"show_dialog": "true"},
+    }
+}
+
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
+]
+
+LOGIN_REDIRECT_URL = "http://localhost:8081/"
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "dj_rest_auth.jwt_auth.JWTCookieAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+        "rest_framework.authentication.TokenAuthentication",
+    ],
+}
+
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.AllowAny',
+    ),
+}
+
+ACCOUNT_LOGIN_METHODS = {'username'}
+ACCOUNT_EMAIL_REQUIRED = False
+
+REST_USE_JWT = True
+REST_SESSION_LOGIN = True
+
+SOCIALACCOUNT_PROVIDERS["spotify"]["APP"] = {
+    "client_id": "738024374a41414383cec879914473f6",
+    "secret": "734582e1bcea4fceb0809bc981b3d45b",
+}
+
+
+
+#EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+#EMAIL_HOST = "smtp.gmail.com"
+#EMAIL_PORT = 587
+#EMAIL_USE_TLS = True
+#EMAIL_HOST_USER = "bonesewer@gmail.com"
+#EMAIL_HOST_PASSWORD = "clhx ondm rkfy mqlo"
+
+#DEFAULT_FROM_EMAIL = "bonesewer@gmail.com"
+
+#ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = "/login/"
+#ACCOUNT_EMAIL_CONFIRMATION_AUTHENTICATED_REDIRECT_URL = "/dashboard/"
