@@ -3,10 +3,18 @@ import {
   Text,
   View,
   ActivityIndicator,
-  Alert,
   TouchableOpacity,
+  TouchableWithoutFeedback,
+  Platform,
+  TextInput,
+  Dimensions,
+  Animated,
 } from "react-native";
 import { Link, useLocalSearchParams } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
+import TypeWriter from "react-native-typewriter";
+import { RFPercentage } from "react-native-responsive-fontsize";
+import { MaterialIcons } from "@expo/vector-icons";
 import "../../global.css";
 import Storage from "./storage";
 
@@ -16,6 +24,16 @@ export default function Index() {
   const { display_name: paramsDisplayName, username: paramsUsername } =
     useLocalSearchParams<{ display_name?: string; username?: string }>();
   const [token, setToken] = useState<string | null>(null);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [inputValue, setInputValue] = useState("");
+  const [underscoreVisible, setUnderscoreVisible] = useState(true);
+  const placeholderText = "What are you in the mood for ?";
+  const screenWidth = Dimensions.get("window").width;
+  const isDesktop = screenWidth > 1200;
+  const inputWidth = isDesktop
+    ? screenWidth * 0.4
+    : Math.min(screenWidth * 0.8, 450);
 
   useEffect(() => {
     const loadToken = async () => {
@@ -49,12 +67,9 @@ export default function Index() {
         return;
       }
 
-      console.log("Access token:", token);
-
       try {
-        // Replace ngrok link with local link
         const response = await fetch(
-          "http://localhost:8000/api/auth/profile/", // Local URL for profile API
+          "http://localhost:8000/api/auth/profile/",
           {
             method: "GET",
             headers: {
@@ -81,57 +96,189 @@ export default function Index() {
     fetchUserProfile();
   }, [paramsDisplayName, paramsUsername, token]);
 
+  useEffect(() => {
+    if (username) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [username]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setUnderscoreVisible((prev) => !prev);
+    }, 500);
+    return () => clearInterval(interval);
+  }, []);
+
   const handleLogout = async () => {
     try {
-      // Replace ngrok link with local link
-      await fetch(
-        "http://localhost:8000/api/auth/logout/", // Local URL for logout API
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-        }
-      );
+      await fetch("http://localhost:8000/api/auth/logout/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
     } catch (error) {
       console.error("Error logging out:", error);
     }
 
     await Storage.removeItem("access_token");
-
     setUsername(null);
     setToken(null);
+    setMenuVisible(false);
 
-    // Replace current URL with base URL (remove username param)
     window.history.replaceState(null, "", "/");
-
-    // Refresh the page
     window.location.reload();
   };
 
   return (
-    <View className="flex-1 justify-center items-center h-svh bg-[#0f0325] text-[#e5d8fc]">
-      {/* Show logout button only if user is logged in */}
+    <LinearGradient
+      colors={["#000000", "#02001f", "#000000"]}
+      style={{
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+        padding: 16,
+      }}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+    >
       {username && (
-        <TouchableOpacity
-          onPress={handleLogout}
-          className="absolute top-4 left-4 bg-red-600 p-2 rounded-lg"
-        >
-          <Text className="text-white font-semibold">Logout</Text>
-        </TouchableOpacity>
+        <View style={{ position: "absolute", top: 20, right: 20 }}>
+          <TouchableWithoutFeedback
+            onPress={() => setMenuVisible(!menuVisible)}
+          >
+            <MaterialIcons name="account-circle" size={60} color="#e5d8fc" />
+          </TouchableWithoutFeedback>
+          {menuVisible && (
+            <View className="absolute top-[3.5rem] right-0 bg-[#1a1a2e] p-2 rounded-lg shadow-lg border border-gray-600">
+              <TouchableOpacity className="p-2">
+                <Text className="text-white">Profile</Text>
+              </TouchableOpacity>
+              <TouchableOpacity className="p-2">
+                <Text className="text-white">Settings</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleLogout} className="p-2">
+                <Text className="text-red-800 font-bold">Logout</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
       )}
 
       {loading ? (
         <ActivityIndicator size="large" color="#e5d8fc" />
       ) : (
         <>
-          <Text className="text-[#e5d8fc] font-semibold text-2xl">
-            {username ? `Logged in as ${username}` : "Riff.AI (fr this time)"}
-          </Text>
-          <Link className="text-[#e5d8fc] mt-4" href={"/about"}>
-            Go to About Screen
-          </Link>
+          <View
+            style={{
+              alignItems: "center",
+              transform: [{ scale: isDesktop ? 0.8 : 1 }],
+            }}
+          >
+            <View style={{ alignItems: "center" }}>
+              <View style={{ alignItems: "center", flexDirection: "row" }}>
+                {username ? (
+                  <Text
+                    style={{
+                      fontSize: RFPercentage(3.5),
+                      color: "#e5d8fc",
+                      fontWeight: "bold",
+                      textAlign: "center",
+                      fontFamily: "sans-serif",
+                    }}
+                  >
+                    Welcome ,
+                  </Text>
+                ) : (
+                  <Text
+                    style={{
+                      fontSize: RFPercentage(3.5),
+                      color: "#e5d8fc",
+                      fontWeight: "bold",
+                      textAlign: "center",
+                      fontFamily: "sans-serif",
+                    }}
+                  >
+                    <TypeWriter typing={1} maxDelay={100}>
+                      Riff.AI
+                    </TypeWriter>
+                    <Text
+                      style={{
+                        opacity: underscoreVisible ? 1 : 0,
+                        fontSize: RFPercentage(2),
+                        color: "#e5d8fc",
+                      }}
+                    >
+                      _
+                    </Text>
+                  </Text>
+                )}
+              </View>
+              {username && (
+                <Text
+                  className="mt-2"
+                  style={{
+                    fontSize: RFPercentage(3.5),
+                    color: "#e5d8fc",
+                    fontWeight: "bold",
+                    textAlign: "center",
+                    fontFamily: "sans-serif",
+                  }}
+                >
+                  <TypeWriter typing={1} maxDelay={100}>
+                    {username}
+                  </TypeWriter>
+                  <Text
+                    style={{
+                      opacity: underscoreVisible ? 1 : 0,
+                      fontSize: RFPercentage(2),
+                      color: "#e5d8fc",
+                    }}
+                  >
+                    _
+                  </Text>
+                </Text>
+              )}
+            </View>
+
+            {username && (
+              <TextInput
+                className="bg-[#1e1830] text-start px-4 py-3 placeholder:opacity-40 text-[#b0a9d3] opacity-70 m-4 rounded-lg"
+                placeholder={placeholderText}
+                placeholderTextColor="#b0a9d3"
+                style={{
+                  fontSize: RFPercentage(2.5),
+                  fontFamily: "monospace",
+                  height: 55,
+                  width: inputWidth,
+                }}
+                value={inputValue}
+                onChangeText={setInputValue}
+              />
+            )}
+          </View>
+
+          {!username && (
+            <View
+              style={{
+                position: "absolute",
+                bottom: 30,
+                flexDirection: "row",
+                alignItems: "center",
+              }}
+            >
+              <Link href="/login">
+                <Text style={{ fontSize: RFPercentage(1.2), color: "#b0a9d3" }}>
+                  Log in
+                </Text>
+              </Link>
+            </View>
+          )}
         </>
       )}
-    </View>
+    </LinearGradient>
   );
 }
