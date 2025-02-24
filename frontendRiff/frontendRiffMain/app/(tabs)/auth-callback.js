@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Text, View, Linking } from "react-native";
 import { useRouter } from "expo-router";
+import Spinner from "react-native-loading-spinner-overlay";
+import { LinearGradient } from "expo-linear-gradient"; // Importing LinearGradient for gradient background
+import { StyleSheet } from "react-native";
 
 export default function AuthCallbackScreen() {
   const [loading, setLoading] = useState(true);
@@ -105,13 +108,40 @@ export default function AuthCallbackScreen() {
     }
   };
 
-  if (loading) {
-    return <Text>Loading...</Text>;
-  }
-
-  if (error) {
-    return <Text>Error: {error}</Text>;
-  }
-
-  return <Text>Redirecting...</Text>;
+  return (
+    <LinearGradient
+      colors={["#000000", "#02001f", "#000000"]}
+      style={styles.container}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+    >
+      <Spinner visible={loading} textContent="Authenticating..." textStyle={styles.spinnerText} />
+      <Text style={styles.title}>Spotify Authentication in Progress...</Text>
+      {error && <Text style={styles.errorText}>{error}</Text>}
+    </LinearGradient>
+  );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#fff", // White text color to contrast with the gradient background
+    textAlign: "center",
+    marginTop: 20,
+  },
+  errorText: {
+    color: "red",
+    fontSize: 16,
+    marginTop: 10,
+  },
+  spinnerText: {
+    color: "#0b6346", // Green gradient for the loading spinner text
+  },
+});
