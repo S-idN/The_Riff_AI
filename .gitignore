@@ -1,20 +1,8 @@
-# Ignore Python virtual environments
-**/.venv/
-
-# Ignore Python cache files
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-
-# Django stuff
-*.log
-local_settings.py
-db.sqlite3
-.venv/
-__pycache__/
-# Byte-compiled / optimized / DLL files
-__pycache__/
 *.py[cod]
 *$py.class
 
@@ -310,6 +298,7 @@ $RECYCLE.BIN/
 
 # Icon must end with two \r
 Icon
+
 
 # Thumbnails
 ._*
