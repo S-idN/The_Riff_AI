@@ -28,6 +28,9 @@ export default function Index() {
   const [fadeAnim] = useState(new Animated.Value(0));
   const [inputValue, setInputValue] = useState("");
   const [underscoreVisible, setUnderscoreVisible] = useState(true);
+  const [weather, setWeather] = useState<any>(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+  const [weatherError, setWeatherError] = useState<string | null>(null);
   const placeholderText = "What are you in the mood for ?";
   const screenWidth = Dimensions.get("window").width;
   const isDesktop = screenWidth > 1200;
@@ -131,6 +134,48 @@ export default function Index() {
 
     window.history.replaceState(null, "", "/");
     window.location.reload();
+  };
+
+  useEffect(() => {
+    console.log("Updated weather state:", weather);
+  }, [weather]);
+
+  // Function to fetch weather data - Fixed endpoint URL
+  const fetchWeather = async () => {
+    setWeatherLoading(true);
+    setWeatherError(null);
+    try {
+      console.log("Fetching user's IP...");
+
+      // Get the user's IP address
+      const ipResponse = await fetch("https://api64.ipify.org?format=json");
+      const ipData = await ipResponse.json();
+      const userIp = ipData.ip;
+
+      console.log("User IP:", userIp);
+      console.log("Fetching geo-location data from backend...");
+
+      // Fetch geo-location data from backend
+      const response = await fetch(
+        `http://127.0.0.1:8000/api/geoip/?ip=${userIp}`
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch weather data: ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log("Geo-location API Response:", data);
+
+      // Update state
+      setWeather(data);
+    } catch (err: any) {
+      console.error("Weather fetch error:", err);
+      setWeatherError(err.message || "Failed to fetch weather data");
+    } finally {
+      setWeatherLoading(false);
+    }
   };
 
   return (
@@ -245,19 +290,51 @@ export default function Index() {
             </View>
 
             {username && (
-              <TextInput
-                className="bg-[#1e1830] text-start px-4 py-3 placeholder:opacity-40 text-[#b0a9d3] opacity-70 m-4 rounded-lg"
-                placeholder={placeholderText}
-                placeholderTextColor="#b0a9d3"
-                style={{
-                  fontSize: RFPercentage(2.5),
-                  fontFamily: "monospace",
-                  height: 55,
-                  width: inputWidth,
-                }}
-                value={inputValue}
-                onChangeText={setInputValue}
-              />
+              <>
+                <TextInput
+                  className="bg-[#1e1830] text-start px-4 py-3 placeholder:opacity-40 text-[#b0a9d3] m-4 rounded-lg"
+                  placeholder={placeholderText}
+                  placeholderTextColor="#b0a9d3"
+                  style={{
+                    fontSize: RFPercentage(2.5),
+                    fontFamily: "monospace",
+                    height: 55,
+                    width: inputWidth,
+                  }}
+                  value={inputValue}
+                  onChangeText={setInputValue}
+                />
+
+                {/* Weather Feature */}
+                <View className="mt-6 items-center">
+                  <TouchableOpacity
+                    className="bg-blue-500 p-4 rounded-2xl"
+                    onPress={fetchWeather}
+                  >
+                    <Text className="text-white font-bold">
+                      Get Weather Data
+                    </Text>
+                  </TouchableOpacity>
+
+                  {weatherLoading && (
+                    <ActivityIndicator
+                      size="large"
+                      color="#ffffff"
+                      className="mt-4"
+                    />
+                  )}
+
+                  {weatherError && (
+                    <Text className="text-red-500 mt-4">{weatherError}</Text>
+                  )}
+
+                  {weather && (
+                    <View className="mt-4 p-4 bg-gray-800 rounded-xl w-64">
+                      <Text>Region: {weather?.region || "Unknown"}</Text>
+                    </View>
+                  )}
+                </View>
+              </>
             )}
           </View>
 

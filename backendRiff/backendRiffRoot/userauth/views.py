@@ -6,6 +6,7 @@ from dj_rest_auth.registration.views import SocialLoginView
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
+import logging
 
 # Load environment variables
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
@@ -15,6 +16,7 @@ SPOTIFY_REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:8081/
 SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
 SPOTIFY_PROFILE_URL = "https://api.spotify.com/v1/me"
 
+logger = logging.getLogger(__name__)
 
 class SpotifyLogin(SocialLoginView):
     adapter_class = SpotifyOAuth2Adapter
@@ -22,6 +24,29 @@ class SpotifyLogin(SocialLoginView):
     def get_callback_url(self):
         return SPOTIFY_REDIRECT_URI
 
+logger = logging.getLogger(__name__)
+
+def geoip_view(request):
+    ip = request.GET.get("ip")
+    
+    if not ip:
+        logger.error("GeoIP request missing IP parameter")
+        return JsonResponse({"error": "IP address is required"}, status=400)
+
+    geoip_url = f"https://ipapi.co/{ip}/json/"
+    
+    try:
+        response = requests.get(geoip_url, timeout=5)  # Added timeout for reliability
+        
+        if response.status_code != 200:
+            logger.error(f"GeoIP API request failed with status {response.status_code}")
+            return JsonResponse({"error": "Failed to fetch geoip data"}, status=500)
+
+        return JsonResponse(response.json())
+
+    except requests.exceptions.RequestException as e:
+        logger.exception(f"GeoIP API request error: {e}")
+        return JsonResponse({"error": "GeoIP service unavailable"}, status=500)
 
 @api_view(["POST"])
 def spotify_callback(request):

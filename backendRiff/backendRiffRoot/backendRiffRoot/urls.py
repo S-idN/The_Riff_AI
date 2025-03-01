@@ -16,9 +16,11 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import include, path
+from userauth.views import geoip_view 
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/auth/", include("userauth.urls")),  # Handles login, registration, and Spotify auth
     path("auth/", include("allauth.urls")),  # Required for OAuth2 flows
+    path("api/geoip/", geoip_view, name="geoip"),  # New geoip route
 ]
