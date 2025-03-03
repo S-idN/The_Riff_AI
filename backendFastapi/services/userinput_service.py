@@ -16,11 +16,11 @@ try:
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Load Whisper model for local speech-to-text
-    whisper_model = whisper.load_model("small").to(device)  # Change to "base" for speed
+    whisper_model = whisper.load_model("small").to(device)  # Change to "base" or "medium" for better accuracy
 
-    # Load NLP models
-    mood_pipeline = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english", device=0 if torch.cuda.is_available() else -1)
-    emotion_pipeline = pipeline("text-classification", model="nateraw/bert-base-uncased-emotion", top_k=None, device=0 if torch.cuda.is_available() else -1)
+    # Load NLP models (Updated for higher accuracy)
+    mood_pipeline = pipeline("sentiment-analysis", model="cardiffnlp/twitter-roberta-base-sentiment-latest", device=0 if torch.cuda.is_available() else -1)
+    emotion_pipeline = pipeline("text-classification", model="j-hartmann/emotion-english-distilroberta-base", top_k=None, device=0 if torch.cuda.is_available() else -1)
     intent_context_model = SentenceTransformer("all-mpnet-base-v2")
 except Exception as e:
     raise RuntimeError(f"Error loading models: {e}")
