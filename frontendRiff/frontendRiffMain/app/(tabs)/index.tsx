@@ -9,8 +9,9 @@ import {
   TextInput,
   Dimensions,
   Animated,
+  Linking,
 } from "react-native";
-import { Link, useLocalSearchParams } from "expo-router";
+import { Link, useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import TypeWriter from "react-native-typewriter";
 import { RFPercentage } from "react-native-responsive-fontsize";
@@ -28,6 +29,9 @@ export default function Index() {
   const [fadeAnim] = useState(new Animated.Value(0));
   const [inputValue, setInputValue] = useState("");
   const [underscoreVisible, setUnderscoreVisible] = useState(true);
+  const [weather, setWeather] = useState<any>(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+  const [weatherError, setWeatherError] = useState<string | null>(null);
   const placeholderText = "What are you in the mood for ?";
   const screenWidth = Dimensions.get("window").width;
   const isDesktop = screenWidth > 1200;
@@ -35,66 +39,61 @@ export default function Index() {
     ? screenWidth * 0.4
     : Math.min(screenWidth * 0.8, 450);
 
+  const SPOTIFY_CLIENT_ID = "738024374a41414383cec879914473f6";
+  const REDIRECT_URI = "http://localhost:8081/auth-callback";
+  const router = useRouter();
+
+  // Handle Spotify login
+  const handleSpotifyLogin = () => {
+    const authUrl = `https://accounts.spotify.com/authorize?client_id=${SPOTIFY_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(
+      REDIRECT_URI
+    )}&scope=user-read-email user-read-private`;
+    Linking.openURL(authUrl);
+  };
+
   useEffect(() => {
-    const loadToken = async () => {
+    const loadTokenAndFetchProfile = async () => {
       try {
         const storedToken = await Storage.getItem("access_token");
         if (storedToken) {
           setToken(storedToken);
+        } else {
+          setLoading(false);
+          return;
+        }
+
+        // Fetch profile after setting token
+        try {
+          const response = await fetch(
+            "http://localhost:8000/api/auth/profile/",
+            {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${storedToken}`, // Use storedToken instead of token
+                "Content-Type": "application/json",
+              },
+              credentials: "include",
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          setUsername(data.display_name || data.id);
+        } catch (error) {
+          console.error("Failed to fetch user profile:", error);
         }
       } catch (error) {
         console.error("Failed to load token:", error);
-      }
-    };
-
-    loadToken();
-
-    if (paramsDisplayName) {
-      setUsername(paramsDisplayName);
-      setLoading(false);
-      return;
-    }
-
-    if (paramsUsername) {
-      setUsername(paramsUsername);
-      setLoading(false);
-      return;
-    }
-
-    const fetchUserProfile = async () => {
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const response = await fetch(
-          "http://localhost:8000/api/auth/profile/",
-          {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            credentials: "include",
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        setUsername(data.display_name || data.id);
-      } catch (error) {
-        console.error("Failed to fetch user profile:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchUserProfile();
-  }, [paramsDisplayName, paramsUsername, token]);
+    loadTokenAndFetchProfile();
+  }, []);
 
   useEffect(() => {
     if (username) {
@@ -133,6 +132,13 @@ export default function Index() {
     window.location.reload();
   };
 
+  useEffect(() => {
+    console.log("Updated weather state:", weather);
+  }, [weather]);
+
+  // Function to fetch weather data - Fixed endpoint URL
+  const recVoice = async () => {};
+
   return (
     <LinearGradient
       colors={["#000000", "#02001f", "#000000"]}
@@ -145,6 +151,24 @@ export default function Index() {
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
     >
+      {!username && (
+        <TouchableOpacity
+          onPress={handleSpotifyLogin}
+          className="absolute top-4 right-4 bg-[#191414] rounded-lg px-4 py-2"
+        >
+          <Text
+            style={{
+              fontSize: RFPercentage(0.9), // Responsive font size
+              color: "#e5d8fc",
+              textAlign: "center",
+              fontFamily: "sans-serif",
+            }}
+          >
+            Login with Spotify
+          </Text>
+        </TouchableOpacity>
+      )}
+
       {username && (
         <View style={{ position: "absolute", top: 20, right: 20 }}>
           <TouchableWithoutFeedback
@@ -245,19 +269,51 @@ export default function Index() {
             </View>
 
             {username && (
-              <TextInput
-                className="bg-[#1e1830] text-start px-4 py-3 placeholder:opacity-40 text-[#b0a9d3] opacity-70 m-4 rounded-lg"
-                placeholder={placeholderText}
-                placeholderTextColor="#b0a9d3"
-                style={{
-                  fontSize: RFPercentage(2.5),
-                  fontFamily: "monospace",
-                  height: 55,
-                  width: inputWidth,
-                }}
-                value={inputValue}
-                onChangeText={setInputValue}
-              />
+              <>
+                <TextInput
+                  className="bg-[#1e1830] text-start px-4 py-3 placeholder:opacity-40 text-[#b0a9d3] m-4 rounded-lg"
+                  placeholder={placeholderText}
+                  placeholderTextColor="#b0a9d3"
+                  style={{
+                    fontSize: RFPercentage(2.5),
+                    fontFamily: "monospace",
+                    height: 55,
+                    width: inputWidth,
+                  }}
+                  value={inputValue}
+                  onChangeText={setInputValue}
+                />
+
+                {/* Weather Feature */}
+                <View className="mt-6 items-center">
+                  <TouchableOpacity
+                    className="bg-blue-500 p-4 rounded-2xl"
+                    onPress={recVoice}
+                  >
+                    <Text className="text-white font-bold">
+                      Start recording
+                    </Text>
+                  </TouchableOpacity>
+
+                  {weatherLoading && (
+                    <ActivityIndicator
+                      size="large"
+                      color="#ffffff"
+                      className="mt-4"
+                    />
+                  )}
+
+                  {weatherError && (
+                    <Text className="text-red-500 mt-4">{weatherError}</Text>
+                  )}
+
+                  {weather && (
+                    <View className="mt-4 p-4 bg-gray-800 rounded-xl w-64">
+                      <Text>Region: {weather?.region || "Unknown"}</Text>
+                    </View>
+                  )}
+                </View>
+              </>
             )}
           </View>
 
@@ -269,13 +325,7 @@ export default function Index() {
                 flexDirection: "row",
                 alignItems: "center",
               }}
-            >
-              <Link href="/login">
-                <Text style={{ fontSize: RFPercentage(1.2), color: "#b0a9d3" }}>
-                  Log in
-                </Text>
-              </Link>
-            </View>
+            ></View>
           )}
         </>
       )}
