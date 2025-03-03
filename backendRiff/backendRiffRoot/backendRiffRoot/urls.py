@@ -19,6 +19,7 @@ from django.urls import include, path
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("api/", include("api_gateway.urls")),
     path("api/auth/", include("userauth.urls")),  # Handles login, registration, and Spotify auth
     path("auth/", include("allauth.urls")),  # Required for OAuth2 flows
 ]
