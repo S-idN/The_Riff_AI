@@ -22,7 +22,7 @@ ALLOWED_HOSTS = [
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:8000",
-    "http://127.0.0.1:8000",
+    "http://127.0.0.1:8001",
 ]
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
@@ -49,8 +49,12 @@ ROOT_URLCONF = 'backendRiffRoot.urls'
 
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:8081",  # Local frontend
+    "http://localhost:8081",  # Frontend
+    "http://127.0.0.1:8081",  # Frontend (alternative localhost)
+    "http://localhost:8000",  # Backend
+    "http://127.0.0.1:8000",  # Backend (alternative localhost)
 ]
+
 
 CORS_ALLOW_CREDENTIALS = True
 

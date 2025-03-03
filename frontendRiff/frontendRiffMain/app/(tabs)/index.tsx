@@ -9,8 +9,9 @@ import {
   TextInput,
   Dimensions,
   Animated,
+  Linking,
 } from "react-native";
-import { Link, useLocalSearchParams } from "expo-router";
+import { Link, useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import TypeWriter from "react-native-typewriter";
 import { RFPercentage } from "react-native-responsive-fontsize";
@@ -38,66 +39,61 @@ export default function Index() {
     ? screenWidth * 0.4
     : Math.min(screenWidth * 0.8, 450);
 
+  const SPOTIFY_CLIENT_ID = "738024374a41414383cec879914473f6";
+  const REDIRECT_URI = "http://localhost:8081/auth-callback";
+  const router = useRouter();
+
+  // Handle Spotify login
+  const handleSpotifyLogin = () => {
+    const authUrl = `https://accounts.spotify.com/authorize?client_id=${SPOTIFY_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(
+      REDIRECT_URI
+    )}&scope=user-read-email user-read-private`;
+    Linking.openURL(authUrl);
+  };
+
   useEffect(() => {
-    const loadToken = async () => {
+    const loadTokenAndFetchProfile = async () => {
       try {
         const storedToken = await Storage.getItem("access_token");
         if (storedToken) {
           setToken(storedToken);
+        } else {
+          setLoading(false);
+          return;
+        }
+
+        // Fetch profile after setting token
+        try {
+          const response = await fetch(
+            "http://localhost:8000/api/auth/profile/",
+            {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${storedToken}`, // Use storedToken instead of token
+                "Content-Type": "application/json",
+              },
+              credentials: "include",
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          setUsername(data.display_name || data.id);
+        } catch (error) {
+          console.error("Failed to fetch user profile:", error);
         }
       } catch (error) {
         console.error("Failed to load token:", error);
-      }
-    };
-
-    loadToken();
-
-    if (paramsDisplayName) {
-      setUsername(paramsDisplayName);
-      setLoading(false);
-      return;
-    }
-
-    if (paramsUsername) {
-      setUsername(paramsUsername);
-      setLoading(false);
-      return;
-    }
-
-    const fetchUserProfile = async () => {
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const response = await fetch(
-          "http://localhost:8000/api/auth/profile/",
-          {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            credentials: "include",
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        setUsername(data.display_name || data.id);
-      } catch (error) {
-        console.error("Failed to fetch user profile:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchUserProfile();
-  }, [paramsDisplayName, paramsUsername, token]);
+    loadTokenAndFetchProfile();
+  }, []);
 
   useEffect(() => {
     if (username) {
@@ -141,42 +137,7 @@ export default function Index() {
   }, [weather]);
 
   // Function to fetch weather data - Fixed endpoint URL
-  const fetchWeather = async () => {
-    setWeatherLoading(true);
-    setWeatherError(null);
-    try {
-      console.log("Fetching user's IP...");
-
-      // Get the user's IP address
-      const ipResponse = await fetch("https://api64.ipify.org?format=json");
-      const ipData = await ipResponse.json();
-      const userIp = ipData.ip;
-
-      console.log("User IP:", userIp);
-      console.log("Fetching geo-location data from backend...");
-
-      // Fetch geo-location data from backend
-      const response = await fetch(
-        `http://127.0.0.1:8000/api/geoip/?ip=${userIp}`
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to fetch weather data: ${errorText}`);
-      }
-
-      const data = await response.json();
-      console.log("Geo-location API Response:", data);
-
-      // Update state
-      setWeather(data);
-    } catch (err: any) {
-      console.error("Weather fetch error:", err);
-      setWeatherError(err.message || "Failed to fetch weather data");
-    } finally {
-      setWeatherLoading(false);
-    }
-  };
+  const recVoice = async () => {};
 
   return (
     <LinearGradient
@@ -190,6 +151,24 @@ export default function Index() {
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
     >
+      {!username && (
+        <TouchableOpacity
+          onPress={handleSpotifyLogin}
+          className="absolute top-4 right-4 bg-[#191414] rounded-lg px-4 py-2"
+        >
+          <Text
+            style={{
+              fontSize: RFPercentage(0.9), // Responsive font size
+              color: "#e5d8fc",
+              textAlign: "center",
+              fontFamily: "sans-serif",
+            }}
+          >
+            Login with Spotify
+          </Text>
+        </TouchableOpacity>
+      )}
+
       {username && (
         <View style={{ position: "absolute", top: 20, right: 20 }}>
           <TouchableWithoutFeedback
@@ -309,10 +288,10 @@ export default function Index() {
                 <View className="mt-6 items-center">
                   <TouchableOpacity
                     className="bg-blue-500 p-4 rounded-2xl"
-                    onPress={fetchWeather}
+                    onPress={recVoice}
                   >
                     <Text className="text-white font-bold">
-                      Get Weather Data
+                      Start recording
                     </Text>
                   </TouchableOpacity>
 
@@ -346,13 +325,7 @@ export default function Index() {
                 flexDirection: "row",
                 alignItems: "center",
               }}
-            >
-              <Link href="/login">
-                <Text style={{ fontSize: RFPercentage(1.2), color: "#b0a9d3" }}>
-                  Log in
-                </Text>
-              </Link>
-            </View>
+            ></View>
           )}
         </>
       )}
