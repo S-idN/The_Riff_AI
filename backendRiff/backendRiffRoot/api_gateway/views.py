@@ -71,7 +71,7 @@ def fetch_geoip(request):
         if not user_ip:
             return Response({"error": "Could not detect IP"}, status=status.HTTP_400_BAD_REQUEST)
 
-        response = requests.get(f"{GEOIP_API_URL}/geoip", params={"ip": user_ip})
+        response = requests.get(f"{GEOIP_API_URL}", params={"ip": user_ip})
         response.raise_for_status()
         return Response(response.json())
 
