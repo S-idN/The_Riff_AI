@@ -16,10 +16,14 @@ import { LinearGradient } from "expo-linear-gradient";
 import TypeWriter from "react-native-typewriter";
 import { RFPercentage } from "react-native-responsive-fontsize";
 import { MaterialIcons } from "@expo/vector-icons";
+import { Audio } from "expo-av";
 import "../../global.css";
 import Storage from "./storage";
 
 export default function Index() {
+  const [isRecording, setIsRecording] = useState(false);
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [transcription, setTranscription] = useState<string | null>(null);
   const [username, setUsername] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const { display_name: paramsDisplayName, username: paramsUsername } =
@@ -137,7 +141,133 @@ export default function Index() {
   }, [weather]);
 
   // Function to fetch weather data - Fixed endpoint URL
-  const recVoice = async () => {};
+  const startRecording = async () => {
+    try {
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== "granted") {
+        alert("Microphone permission is required!");
+        return;
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      const newRecording = new Audio.Recording();
+      await newRecording.prepareToRecordAsync({
+        isMeteringEnabled: true,
+        android: {
+          extension: ".m4a",
+          outputFormat: 2, // MPEG_4
+          audioEncoder: 3, // AAC
+          sampleRate: 44100,
+          numberOfChannels: 1,
+          bitRate: 128000,
+        },
+        ios: {
+          extension: ".m4a",
+          audioQuality: 127, // High quality (hardcoded)
+          sampleRate: 44100,
+          numberOfChannels: 1,
+          bitRate: 128000,
+          linearPCMBitDepth: 16,
+          linearPCMIsBigEndian: false,
+          linearPCMIsFloat: false,
+        },
+        web: {
+          mimeType: undefined,
+          bitsPerSecond: undefined,
+        },
+      });
+
+      await newRecording.startAsync();
+      setRecording(newRecording);
+      setIsRecording(true);
+      console.log("Recording started...");
+
+      setTimeout(() => stopRecording(), 5000);
+    } catch (error) {
+      console.error("Recording error:", error);
+    }
+  };
+
+  const sendTextForAnalysis = async (text: string) => {
+    try {
+      const response = await fetch(
+        `http://localhost:8001/user_input/analyze_text?text=${encodeURIComponent(
+          text
+        )}`,
+        {
+          method: "POST", // FastAPI allows query parameters in POST too
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      console.log("📥 Response status:", response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(
+          `❌ HTTP error! Status: ${response.status}, Message: ${errorText}`
+        );
+        return null;
+      }
+
+      const data = await response.json();
+      console.log("✅ Analysis result:", data);
+      return data;
+    } catch (error) {
+      console.error("❌ Error sending text:", error);
+      return null;
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!recording) return;
+
+    try {
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      console.log("🎤 Recording stopped! File:", uri);
+
+      setRecording(null);
+      setIsRecording(false);
+
+      if (uri) {
+        // Fetch the file as a Blob
+        const response = await fetch(uri);
+        const blob = await response.blob();
+
+        const formData = new FormData();
+        formData.append("file", blob, "audio.m4a");
+
+        console.log("🚀 Uploading audio...");
+
+        const uploadResponse = await fetch(
+          "http://localhost:8001/user_input/analyze_audio",
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
+
+        if (!uploadResponse.ok) {
+          const errorText = await uploadResponse.text();
+          throw new Error(`❌ Failed to send audio: ${errorText}`);
+        }
+
+        const result = await uploadResponse.json();
+
+        // ✅ Log all relevant information
+        console.log("📝 Transcription:", result.text);
+        console.log(" Mood:", result.mood);
+        console.log(" Emotion:", result.emotion); // Logs emotions like "anger" or "joy"
+      }
+    } catch (error) {
+      console.error("❌ Error stopping recording:", error);
+    }
+  };
 
   return (
     <LinearGradient
@@ -282,36 +412,25 @@ export default function Index() {
                   }}
                   value={inputValue}
                   onChangeText={setInputValue}
+                  onSubmitEditing={() => sendTextForAnalysis(inputValue)} // ✅ Triggers when "Enter" is pressed
                 />
 
                 {/* Weather Feature */}
-                <View className="mt-6 items-center">
+                <View style={{ alignItems: "center", marginTop: 20 }}>
                   <TouchableOpacity
-                    className="bg-blue-500 p-4 rounded-2xl"
-                    onPress={recVoice}
+                    onPress={isRecording ? stopRecording : startRecording} // Toggle function
+                    style={{
+                      backgroundColor: isRecording ? "red" : "green", // Dynamic button color
+                      padding: 12,
+                      borderRadius: 10,
+                      marginBottom: 10,
+                    }}
                   >
-                    <Text className="text-white font-bold">
-                      Start recording
+                    <Text style={{ color: "white", fontWeight: "bold" }}>
+                      {isRecording ? "Stop Recording" : "Start Recording"}{" "}
+                      {/* Dynamic text */}
                     </Text>
                   </TouchableOpacity>
-
-                  {weatherLoading && (
-                    <ActivityIndicator
-                      size="large"
-                      color="#ffffff"
-                      className="mt-4"
-                    />
-                  )}
-
-                  {weatherError && (
-                    <Text className="text-red-500 mt-4">{weatherError}</Text>
-                  )}
-
-                  {weather && (
-                    <View className="mt-4 p-4 bg-gray-800 rounded-xl w-64">
-                      <Text>Region: {weather?.region || "Unknown"}</Text>
-                    </View>
-                  )}
                 </View>
               </>
             )}

@@ -40,20 +40,27 @@ class UserInputResponse(BaseModel):
 # Helper Functions         #
 # ------------------------ #
 async def extract_text_from_audio(file: UploadFile) -> str:
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
-        temp_audio.write(await file.read())
-        temp_audio.flush()
-        audio_path = temp_audio.name
-
+    """Extracts text from an uploaded audio file using Whisper."""
     try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
+            temp_audio.write(await file.read())
+            temp_audio.flush()
+            audio_path = temp_audio.name
+
+        print(f"🔹 Processing audio file: {audio_path}")  # Debugging log
+
         result = whisper_model.transcribe(audio_path)
         os.remove(audio_path)  # Cleanup temp file
-        return result["text"].strip() if result["text"].strip() else "Unable to recognize speech"
+
+        text = result["text"].strip()
+        return text if text else "Unable to recognize speech"
     except Exception as e:
-        os.remove(audio_path)
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
         raise HTTPException(status_code=500, detail=f"Audio transcription error: {str(e)}")
 
 async def analyze_text(text: str) -> dict:
+    """Analyzes text for mood, emotion, and generates an intent-context embedding."""
     text = text.strip()
     
     # Fallback if empty text or unrecognized audio
@@ -64,34 +71,64 @@ async def analyze_text(text: str) -> dict:
             "intent_context_embedding": [0.0] * 768
         }
 
-    # Extract mood
-    mood_result = mood_pipeline(text)
-    mood = mood_result[0]['label'] if mood_result else "neutral"
+    print(f"🔹 Analyzing text: {text}")  # Debugging log
 
-    # Extract emotion
-    emotion_scores = emotion_pipeline(text)
-    emotion = max(emotion_scores[0], key=lambda x: x['score'])['label'] if emotion_scores else "neutral"
+    try:
+        # Extract mood
+        mood_result = mood_pipeline(text)
+        mood = mood_result[0]['label'] if mood_result else "neutral"
 
-    # Generate intent-context embedding
-    embedding = intent_context_model.encode(text, convert_to_numpy=True).tolist()
+        # Extract emotion
+        emotion_scores = emotion_pipeline(text)
+        emotion = max(emotion_scores[0], key=lambda x: x['score'])['label'] if emotion_scores else "neutral"
 
-    return {
-        "mood": mood,
-        "emotion": emotion,
-        "intent_context_embedding": embedding
-    }
+        # Generate intent-context embedding
+        embedding = intent_context_model.encode(text, convert_to_numpy=True).tolist()
+
+        return {
+            "mood": mood,
+            "emotion": emotion,
+            "intent_context_embedding": embedding
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Text analysis error: {str(e)}")
 
 # ------------------------ #
 # API Endpoints            #
 # ------------------------ #
 @input_router.post("/analyze_text", response_model=UserInputResponse)
-async def analyze_text_endpoint(input: TextInput):
-    """
-    Analyze provided text and extract mood, emotion, and intent-context embedding.
-    """
-    result = await analyze_text(input.text)
-    return UserInputResponse(**result)
+async def analyze_text(text: str) -> dict:
+    text = text.strip()
+    
+    if not text or text == "Unable to recognize speech":
+        return {
+            "mood": "neutral",
+            "emotion": "neutral",
+            "intent_context_embedding": [0.0] * 768
+        }
 
+    mood_result = mood_pipeline(text)
+    mood = mood_result[0]['label'] if mood_result else "neutral"
+
+    emotion_scores = emotion_pipeline(text)
+    
+    if emotion_scores:
+        # Sort by confidence and pick the highest scoring emotion
+        top_emotion = max(emotion_scores[0], key=lambda x: x['score'])
+        emotion = top_emotion['label']
+        emotion_confidence = top_emotion['score']
+    else:
+        emotion = "neutral"
+        emotion_confidence = 0.0
+
+    embedding = intent_context_model.encode(text, convert_to_numpy=True).tolist()
+
+    return {
+        "mood": mood,
+        "emotion": emotion,
+        "emotion_confidence": emotion_confidence,  # <-- Add this for debugging
+        "intent_context_embedding": embedding
+    }
 
 @input_router.post("/analyze_audio", response_model=UserInputResponse)
 async def analyze_audio_endpoint(file: UploadFile = File(...)):
@@ -99,6 +136,12 @@ async def analyze_audio_endpoint(file: UploadFile = File(...)):
     Extract text from uploaded audio file using Whisper and analyze it.
     Returns fallback response if speech recognition fails.
     """
+    print(f"🔹 Received audio file: {file.filename}, Content-Type: {file.content_type}")  # Debugging log
+    if not file.content_type.startswith("audio/"):
+        raise HTTPException(status_code=400, detail="Invalid file type. Please upload an audio file.")
+
     text = await extract_text_from_audio(file)
+    print(f"🔹 Transcribed Text: {text}")  # Debugging log
+
     result = await analyze_text(text)
     return UserInputResponse(**result)
