@@ -194,13 +194,17 @@ export default function Index() {
 
   const sendTextForAnalysis = async (text: string) => {
     try {
+      const AuthToken = await Storage.getItem("access_token");
+
       const response = await fetch(
-        `http://localhost:8001/user_input/analyze_text?text=${encodeURIComponent(
-          text
-        )}`,
+        "http://localhost:8000/api/get_song_recommendation/",
         {
-          method: "POST", // FastAPI allows query parameters in POST too
-          headers: { "Content-Type": "application/json" },
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${AuthToken}`, // Ensure authentication
+          },
+          body: JSON.stringify({ text }), // Send text in request body
         }
       );
 
@@ -215,7 +219,7 @@ export default function Index() {
       }
 
       const data = await response.json();
-      console.log("✅ Analysis result:", data);
+      console.log("✅ Analysis + Recommendations:", data);
       return data;
     } catch (error) {
       console.error("❌ Error sending text:", error);
@@ -234,38 +238,75 @@ export default function Index() {
       setRecording(null);
       setIsRecording(false);
 
-      if (uri) {
-        // Fetch the file as a Blob
-        const response = await fetch(uri);
-        const blob = await response.blob();
-
-        const formData = new FormData();
-        formData.append("file", blob, "audio.m4a");
-
-        console.log("🚀 Uploading audio...");
-
-        const uploadResponse = await fetch(
-          "http://localhost:8001/user_input/analyze_audio",
-          {
-            method: "POST",
-            body: formData,
-          }
-        );
-
-        if (!uploadResponse.ok) {
-          const errorText = await uploadResponse.text();
-          throw new Error(`❌ Failed to send audio: ${errorText}`);
-        }
-
-        const result = await uploadResponse.json();
-
-        // ✅ Log all relevant information
-        console.log("📝 Transcription:", result.text);
-        console.log(" Mood:", result.mood);
-        console.log(" Emotion:", result.emotion); // Logs emotions like "anger" or "joy"
+      if (!uri) {
+        throw new Error("❌ No recording URI found!");
       }
+
+      // Fetch the file as a Blob
+      const response = await fetch(uri);
+      const blob = await response.blob();
+
+      // Get the stored authentication token
+      const AuthToken = await Storage.getItem("access_token"); // Retrieve token from storage
+
+      if (!AuthToken) {
+        throw new Error("❌ No authentication token found!");
+      }
+
+      // Create FormData object
+      const formData = new FormData();
+      formData.append("file", blob, "audio.m4a");
+
+      console.log("🚀 Uploading audio to Django...");
+
+      // Send request to Django
+      const uploadResponse = await fetch(
+        "http://localhost:8000/api/analyze_audio/",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${AuthToken}`, // 🔑 Use the retrieved token
+          },
+          body: formData,
+        }
+      );
+
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        throw new Error(`❌ Failed to send audio: ${errorText}`);
+      }
+
+      // Parse response JSON
+      const result = await uploadResponse.json();
+
+      // ✅ Log results
+      console.log("📝 Transcription:", result.text);
+      console.log("🎭 Mood:", result.mood);
+      console.log("😃 Emotion:", result.emotion);
     } catch (error) {
       console.error("❌ Error stopping recording:", error);
+    }
+  };
+
+  const fetchGeoIP = async () => {
+    try {
+      const response = await fetch("http://127.0.0.1:8000/api/fetch_geoip/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json", // ✅ Ensures Django recognizes JSON
+          Accept: "application/json",
+        },
+        body: JSON.stringify({}), // ✅ Send empty object to auto-detect IP
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("GeoIP Data:", data);
+    } catch (error) {
+      console.error("Error fetching GeoIP:", error);
     }
   };
 
@@ -430,6 +471,14 @@ export default function Index() {
                       {isRecording ? "Stop Recording" : "Start Recording"}{" "}
                       {/* Dynamic text */}
                     </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      fetchGeoIP();
+                    }}
+                    className="bg-orange-300 rounded-lg p-2 "
+                  >
+                    <Text className="font-bold">Fetch GeoIP</Text>
                   </TouchableOpacity>
                 </View>
               </>

@@ -16,7 +16,7 @@ try:
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Load Whisper model for local speech-to-text
-    whisper_model = whisper.load_model("small").to(device)  # Change to "base" or "medium" for better accuracy
+    whisper_model = whisper.load_model("large").to(device)  # Change to "base" or "medium" for better accuracy
 
     # Load NLP models (Updated for higher accuracy)
     mood_pipeline = pipeline("sentiment-analysis", model="cardiffnlp/twitter-roberta-base-sentiment-latest", device=0 if torch.cuda.is_available() else -1)
@@ -90,6 +90,7 @@ async def analyze_text(text: str) -> dict:
             "emotion": emotion,
             "intent_context_embedding": embedding
         }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Text analysis error: {str(e)}")
 
