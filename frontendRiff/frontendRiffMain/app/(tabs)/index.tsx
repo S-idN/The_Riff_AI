@@ -17,6 +17,7 @@ import TypeWriter from "react-native-typewriter";
 import { RFPercentage } from "react-native-responsive-fontsize";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
+import * as AuthSession from "expo-auth-session";
 import "../../global.css";
 import Storage from "./storage";
 
@@ -28,6 +29,7 @@ export default function Index() {
   const [loading, setLoading] = useState(true);
   const { display_name: paramsDisplayName, username: paramsUsername } =
     useLocalSearchParams<{ display_name?: string; username?: string }>();
+
   const [token, setToken] = useState<string | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
@@ -43,12 +45,32 @@ export default function Index() {
     ? screenWidth * 0.4
     : Math.min(screenWidth * 0.8, 450);
 
-  const SPOTIFY_CLIENT_ID = "738024374a41414383cec879914473f6";
-  const REDIRECT_URI = "http://localhost:8081/auth-callback";
   const router = useRouter();
+
+  const LOCAL_IP = "192.168.1.7";
+
+  // Special IP for Android Emulator to access PC localhost
+  const ANDROID_EMULATOR_IP = "10.0.2.2";
+
+  // Detect if running on Web
+  const isWeb = typeof window !== "undefined";
+
+  const BASE_URL = isWeb
+    ? "http://localhost:8000" // Use localhost for web
+    : Platform.OS === "android"
+    ? `http://${ANDROID_EMULATOR_IP}:8000` // Use emulator-specific IP for Android
+    : `http://${LOCAL_IP}:8000`;
+
+  const REDIRECT_URI = isWeb
+    ? `${window.location.origin}/auth-callback` // Use current domain for web
+    : Platform.OS === "android"
+    ? `http://${ANDROID_EMULATOR_IP}:8081/auth-callback` // Use emulator-specific IP for Android
+    : `http://${LOCAL_IP}:8081/auth-callback`;
+  const SPOTIFY_CLIENT_ID = "738024374a41414383cec879914473f6";
 
   // Handle Spotify login
   const handleSpotifyLogin = () => {
+    console.log(REDIRECT_URI);
     const authUrl = `https://accounts.spotify.com/authorize?client_id=${SPOTIFY_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(
       REDIRECT_URI
     )}&scope=user-read-email user-read-private`;
@@ -68,17 +90,14 @@ export default function Index() {
 
         // Fetch profile after setting token
         try {
-          const response = await fetch(
-            "http://localhost:8000/api/auth/profile/",
-            {
-              method: "GET",
-              headers: {
-                Authorization: `Bearer ${storedToken}`, // Use storedToken instead of token
-                "Content-Type": "application/json",
-              },
-              credentials: "include",
-            }
-          );
+          const response = await fetch(`${BASE_URL}/api/auth/profile/`, {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${storedToken}`, // Use storedToken instead of token
+              "Content-Type": "application/json",
+            },
+            credentials: "include",
+          });
 
           if (!response.ok) {
             throw new Error(`HTTP error! Status: ${response.status}`);
@@ -118,7 +137,7 @@ export default function Index() {
 
   const handleLogout = async () => {
     try {
-      await fetch("http://localhost:8000/api/auth/logout/", {
+      await fetch(`${BASE_URL}/api/auth/logout/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -196,17 +215,14 @@ export default function Index() {
     try {
       const AuthToken = await Storage.getItem("access_token");
 
-      const response = await fetch(
-        "http://localhost:8000/api/get_song_recommendation/",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${AuthToken}`, // Ensure authentication
-          },
-          body: JSON.stringify({ text }), // Send text in request body
-        }
-      );
+      const response = await fetch(`${BASE_URL}/api/get_song_recommendation/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${AuthToken}`, // Ensure authentication
+        },
+        body: JSON.stringify({ text }), // Send text in request body
+      });
 
       console.log("📥 Response status:", response.status);
 
@@ -260,16 +276,13 @@ export default function Index() {
       console.log("🚀 Uploading audio to Django...");
 
       // Send request to Django
-      const uploadResponse = await fetch(
-        "http://localhost:8000/api/analyze_audio/",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${AuthToken}`, // 🔑 Use the retrieved token
-          },
-          body: formData,
-        }
-      );
+      const uploadResponse = await fetch(`${BASE_URL}/api/analyze_audio/`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${AuthToken}`, // 🔑 Use the retrieved token
+        },
+        body: formData,
+      });
 
       if (!uploadResponse.ok) {
         const errorText = await uploadResponse.text();

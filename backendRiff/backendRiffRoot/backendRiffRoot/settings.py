@@ -1,5 +1,7 @@
 import os
 from pathlib import Path
+import platform
+import socket
 from dotenv import load_dotenv
 import environ
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,7 +17,8 @@ environ.Env.read_env()
 
 USER_INPUT_API_URL = env("USER_INPUT_API_URL", default="http://127.0.0.1:8001/user_input/")
 GEOIP_API_URL = env("GEOIP_API_URL", default="http://127.0.0.1:8002/geoip/")
-
+LOCAL_IP = "192.168.1.7"
+ANDROID_EMULATOR_IP = "10.0.2.2"
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -25,16 +28,34 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "your_default_secret_key")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "True") == "True"
 
+LOCAL_IP = "192.168.1.7"  # Your PC's local network IP
+ANDROID_EMULATOR_IP = "10.0.2.2"
+
+# Determine the correct redirect URI
+if platform.system() in ["Windows", "Darwin"]:  # PC (Mac or Windows) - Web App
+    SPOTIFY_REDIRECT_URI = "http://localhost:8081/auth-callback"
+elif platform.system() == "Linux":  # Android Emulator (assumed Linux)
+    SPOTIFY_REDIRECT_URI = f"http://{ANDROID_EMULATOR_IP}:8081/auth-callback"
+else:  # Physical Android Device
+    SPOTIFY_REDIRECT_URI = f"http://{LOCAL_IP}:8081/auth-callback"
+
 ALLOWED_HOSTS = [
+    "192.168.1.7",
     "localhost",
     "0.0.0.0",
+    "http://10.0.2.2:8000",
     "127.0.0.1",
+    LOCAL_IP,
+    ANDROID_EMULATOR_IP,
     os.getenv("ALLOWED_HOSTS_EXTRA", "localhost"),  # Additional allowed hosts
 ]
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:8000",
     "http://127.0.0.1:8001",
+    "http://192.168.1.7:8000",  # Your PC's local network IP (for physical devices)
+    "http://10.0.2.2:8000",  # Android Emulator's loopback to PC
+    "exp://192.168.1.7:8081",
 ]
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
@@ -61,12 +82,19 @@ ROOT_URLCONF = 'backendRiffRoot.urls'
 
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:8081",  # Frontend
-    "http://127.0.0.1:8081",  # Frontend (alternative localhost)
-    "http://localhost:8000",  # Backend
-    "http://127.0.0.1:8000",  # Backend (alternative localhost)
-    "http://localhost:8001",  # Backend
-    "http://127.0.0.1:8001",
+    "http://localhost:8081",  # Frontend (local)
+    "http://127.0.0.1:8081",  # Frontend alternative
+    "http://localhost:8000",  # Backend (Django running locally)
+    "http://127.0.0.1:8000",  # Backend alternative
+    "http://localhost:8001",  # FastAPI backend
+    "http://127.0.0.1:8001",  # FastAPI alternative
+    f"http://{LOCAL_IP}:8081",  # Local frontend (PC or mobile)
+    f"http://{ANDROID_EMULATOR_IP}:8081",  # Android Emulator frontend
+    "http://192.168.1.7:8081",  # Expo development server (PC’s local IP)
+    "http://192.168.1.7:8000",  # Django backend (PC’s local IP)
+    "http://10.0.2.2:8000",  # Android Emulator (loopback to PC)
+    "http://192.168.1.7:19000",  # Expo Metro Bundler
+    "http://192.168.1.7:19006",  # Expo Web Preview (if using web)
 ]
 
 
@@ -181,7 +209,19 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 # Adjust login redirect URL
+LOCAL_IP = "192.168.1.7"  # Your PC’s local IP
+ANDROID_EMULATOR_IP = "10.0.2.2"
+
+# Default to localhost for web/PC development
 LOGIN_REDIRECT_URL = "http://localhost:8081/"
+
+# Check if running in an Expo environment (Mobile)
+if os.getenv("EXPO_DEV"):
+    LOGIN_REDIRECT_URL = f"http://{LOCAL_IP}:8081/"
+
+# If running on an Android emulator
+if os.getenv("ANDROID_EMULATOR"):
+    LOGIN_REDIRECT_URL = f"http://{ANDROID_EMULATOR_IP}:8081/"
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [

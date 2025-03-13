@@ -11,7 +11,14 @@ import logging
 # Load environment variables
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
-SPOTIFY_REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:8081/auth-callback")
+
+# Define multiple redirect URIs for different platforms
+SPOTIFY_REDIRECT_URIS = {
+    "web": "http://localhost:8081/auth-callback",
+    "pc": "http://localhost:8000/auth/complete/spotify/",
+    "mobile": "myapp://auth-callback",
+    "android_studio": "http://10.0.2.2:8081/auth-callback"
+}
 
 SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
 SPOTIFY_PROFILE_URL = "https://api.spotify.com/v1/me"
@@ -22,9 +29,13 @@ class SpotifyLogin(SocialLoginView):
     adapter_class = SpotifyOAuth2Adapter
 
     def get_callback_url(self):
-        return SPOTIFY_REDIRECT_URI
+        return SPOTIFY_REDIRECT_URIS.get("web")  # Default to web
 
-logger = logging.getLogger(__name__)
+
+def get_redirect_uri(platform):
+    """ Returns the correct redirect URI based on the platform. """
+    return SPOTIFY_REDIRECT_URIS.get(platform, SPOTIFY_REDIRECT_URIS["web"])
+
 
 def geoip_view(request):
     ip = request.GET.get("ip")
@@ -48,35 +59,40 @@ def geoip_view(request):
         logger.exception(f"GeoIP API request error: {e}")
         return JsonResponse({"error": "GeoIP service unavailable"}, status=500)
 
+
 @api_view(["POST"])
 def spotify_callback(request):
-    """
-    Handle Spotify OAuth2 callback and exchange the authorization code for an access token.
-    """
     code = request.data.get("code")
+    platform = request.data.get("platform", "web")  # Default to web
 
     if not code:
+        logger.error("Missing authorization code")
         return Response({"error": "Authorization code is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    redirect_uri = get_redirect_uri(platform)
+
+    logger.info(f"Received authorization code for platform: {platform}")
+    logger.info(f"Using redirect URI: {redirect_uri}")
 
     # Exchange authorization code for an access token
     payload = {
         "grant_type": "authorization_code",
         "code": code,
-        "redirect_uri": SPOTIFY_REDIRECT_URI,
+        "redirect_uri": redirect_uri,
         "client_id": SPOTIFY_CLIENT_ID,
         "client_secret": SPOTIFY_CLIENT_SECRET,
     }
 
     response = requests.post(SPOTIFY_TOKEN_URL, data=payload)
-
+    
     try:
         token_data = response.json()
         if response.status_code == 200:
-            return Response(token_data)  # Successfully authenticated
+            return Response(token_data)
         else:
             return Response({"error": "Failed to exchange token", "details": token_data}, status=response.status_code)
-
     except requests.exceptions.JSONDecodeError:
+        logger.error("Invalid response from Spotify")
         return Response({"error": "Invalid response from Spotify"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
