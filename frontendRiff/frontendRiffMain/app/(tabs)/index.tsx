@@ -10,26 +10,35 @@ import {
   Dimensions,
   Animated,
   Linking,
+  ScrollView,
 } from "react-native";
 import { Link, useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import TypeWriter from "react-native-typewriter";
 import { RFPercentage } from "react-native-responsive-fontsize";
 import { MaterialIcons } from "@expo/vector-icons";
-import { Audio } from "expo-av";
-import * as AuthSession from "expo-auth-session";
 import "../../global.css";
 import Storage from "./storage";
 
+// Define song recommendation interface
+interface Song {
+  name: string;
+  artist: string;
+  url: string;
+  spotify_url?: string;
+  image_url?: string;
+}
+
+interface SongRecommendationResponse {
+  songs: Song[];
+  message?: string;
+}
+
 export default function Index() {
-  const [isRecording, setIsRecording] = useState(false);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [transcription, setTranscription] = useState<string | null>(null);
   const [username, setUsername] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const { display_name: paramsDisplayName, username: paramsUsername } =
     useLocalSearchParams<{ display_name?: string; username?: string }>();
-
   const [token, setToken] = useState<string | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
@@ -38,6 +47,13 @@ export default function Index() {
   const [weather, setWeather] = useState<any>(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [weatherError, setWeatherError] = useState<string | null>(null);
+  const [emotionData, setEmotionData] = useState<any>(null);
+  const [emotionLoading, setEmotionLoading] = useState(false);
+  const [songRecommendations, setSongRecommendations] = useState<Song[]>([]);
+  const [recommendationsLoading, setRecommendationsLoading] = useState(false);
+  const [recommendationsError, setRecommendationsError] = useState<
+    string | null
+  >(null);
   const placeholderText = "What are you in the mood for ?";
   const screenWidth = Dimensions.get("window").width;
   const isDesktop = screenWidth > 1200;
@@ -45,32 +61,12 @@ export default function Index() {
     ? screenWidth * 0.4
     : Math.min(screenWidth * 0.8, 450);
 
-  const router = useRouter();
-
-  const LOCAL_IP = "192.168.1.7";
-
-  // Special IP for Android Emulator to access PC localhost
-  const ANDROID_EMULATOR_IP = "10.0.2.2";
-
-  // Detect if running on Web
-  const isWeb = typeof window !== "undefined";
-
-  const BASE_URL = isWeb
-    ? "http://localhost:8000" // Use localhost for web
-    : Platform.OS === "android"
-    ? `http://${ANDROID_EMULATOR_IP}:8000` // Use emulator-specific IP for Android
-    : `http://${LOCAL_IP}:8000`;
-
-  const REDIRECT_URI = isWeb
-    ? `${window.location.origin}/auth-callback` // Use current domain for web
-    : Platform.OS === "android"
-    ? `http://${ANDROID_EMULATOR_IP}:8081/auth-callback` // Use emulator-specific IP for Android
-    : `http://${LOCAL_IP}:8081/auth-callback`;
   const SPOTIFY_CLIENT_ID = "738024374a41414383cec879914473f6";
+  const REDIRECT_URI = "http://localhost:8081/auth-callback";
+  const router = useRouter();
 
   // Handle Spotify login
   const handleSpotifyLogin = () => {
-    console.log(REDIRECT_URI);
     const authUrl = `https://accounts.spotify.com/authorize?client_id=${SPOTIFY_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(
       REDIRECT_URI
     )}&scope=user-read-email user-read-private`;
@@ -90,14 +86,17 @@ export default function Index() {
 
         // Fetch profile after setting token
         try {
-          const response = await fetch(`${BASE_URL}/api/auth/profile/`, {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${storedToken}`, // Use storedToken instead of token
-              "Content-Type": "application/json",
-            },
-            credentials: "include",
-          });
+          const response = await fetch(
+            "http://localhost:8000/api/auth/profile/",
+            {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${storedToken}`, // Use storedToken instead of token
+                "Content-Type": "application/json",
+              },
+              credentials: "include",
+            }
+          );
 
           if (!response.ok) {
             throw new Error(`HTTP error! Status: ${response.status}`);
@@ -137,7 +136,7 @@ export default function Index() {
 
   const handleLogout = async () => {
     try {
-      await fetch(`${BASE_URL}/api/auth/logout/`, {
+      await fetch("http://localhost:8000/api/auth/logout/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -159,169 +158,177 @@ export default function Index() {
     console.log("Updated weather state:", weather);
   }, [weather]);
 
-  // Function to fetch weather data - Fixed endpoint URL
-  const startRecording = async () => {
+  // Function to analyze text emotion
+  const analyzeEmotion = async () => {
+    if (!inputValue.trim()) return;
+
+    setEmotionLoading(true);
+    setEmotionData(null);
+
     try {
-      const { status } = await Audio.requestPermissionsAsync();
-      if (status !== "granted") {
-        alert("Microphone permission is required!");
+      // Make sure we have a token
+      if (!token) {
+        console.error("No authentication token available");
+        setEmotionLoading(false);
         return;
       }
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
+      console.log("Using token for authentication:", token);
+      console.log("Analyzing text:", inputValue);
 
-      const newRecording = new Audio.Recording();
-      await newRecording.prepareToRecordAsync({
-        isMeteringEnabled: true,
-        android: {
-          extension: ".m4a",
-          outputFormat: 2, // MPEG_4
-          audioEncoder: 3, // AAC
-          sampleRate: 44100,
-          numberOfChannels: 1,
-          bitRate: 128000,
-        },
-        ios: {
-          extension: ".m4a",
-          audioQuality: 127, // High quality (hardcoded)
-          sampleRate: 44100,
-          numberOfChannels: 1,
-          bitRate: 128000,
-          linearPCMBitDepth: 16,
-          linearPCMIsBigEndian: false,
-          linearPCMIsFloat: false,
-        },
-        web: {
-          mimeType: undefined,
-          bitsPerSecond: undefined,
-        },
-      });
+      // Call Django backend
+      let response;
+      let endpointUsed = "";
 
-      await newRecording.startAsync();
-      setRecording(newRecording);
-      setIsRecording(true);
-      console.log("Recording started...");
+      try {
+        console.log("Trying main analyze_text endpoint...");
+        endpointUsed = "main";
+        response = await fetch("http://localhost:8000/api/analyze_text/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ text: inputValue }),
+          credentials: "include",
+        });
 
-      setTimeout(() => stopRecording(), 5000);
-    } catch (error) {
-      console.error("Recording error:", error);
-    }
-  };
+        if (!response.ok) {
+          console.log(
+            `Main endpoint returned status ${response.status}, trying mock endpoint...`
+          );
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+      } catch (error) {
+        console.log("Using mock analyze_text endpoint instead");
+        endpointUsed = "mock";
+        response = await fetch("http://localhost:8000/api/mock_analyze_text/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ text: inputValue }),
+          credentials: "include",
+        });
 
-  const sendTextForAnalysis = async (text: string) => {
-    try {
-      const AuthToken = await Storage.getItem("access_token");
+        if (!response.ok) {
+          throw new Error(`Mock endpoint error! Status: ${response.status}`);
+        }
+      }
 
-      const response = await fetch(`${BASE_URL}/api/get_song_recommendation/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${AuthToken}`, // Ensure authentication
-        },
-        body: JSON.stringify({ text }), // Send text in request body
-      });
-
-      console.log("📥 Response status:", response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(
-          `❌ HTTP error! Status: ${response.status}, Message: ${errorText}`
+      try {
+        const data = await response.json();
+        setEmotionData(data);
+        console.log(
+          `Emotion analysis result (from ${endpointUsed} endpoint):`,
+          data
         );
-        return null;
+      } catch (parseError) {
+        console.error("Error parsing JSON response:", parseError);
+        throw new Error("Failed to parse response data");
       }
-
-      const data = await response.json();
-      console.log("✅ Analysis + Recommendations:", data);
-      return data;
     } catch (error) {
-      console.error("❌ Error sending text:", error);
-      return null;
+      console.error("Error analyzing emotion:", error);
+      alert("Unable to analyze text. Please try again later.");
+    } finally {
+      setEmotionLoading(false);
     }
   };
 
-  const stopRecording = async () => {
-    if (!recording) return;
-
-    try {
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-      console.log("🎤 Recording stopped! File:", uri);
-
-      setRecording(null);
-      setIsRecording(false);
-
-      if (!uri) {
-        throw new Error("❌ No recording URI found!");
-      }
-
-      // Fetch the file as a Blob
-      const response = await fetch(uri);
-      const blob = await response.blob();
-
-      // Get the stored authentication token
-      const AuthToken = await Storage.getItem("access_token"); // Retrieve token from storage
-
-      if (!AuthToken) {
-        throw new Error("❌ No authentication token found!");
-      }
-
-      // Create FormData object
-      const formData = new FormData();
-      formData.append("file", blob, "audio.m4a");
-
-      console.log("🚀 Uploading audio to Django...");
-
-      // Send request to Django
-      const uploadResponse = await fetch(`${BASE_URL}/api/analyze_audio/`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${AuthToken}`, // 🔑 Use the retrieved token
-        },
-        body: formData,
-      });
-
-      if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        throw new Error(`❌ Failed to send audio: ${errorText}`);
-      }
-
-      // Parse response JSON
-      const result = await uploadResponse.json();
-
-      // ✅ Log results
-      console.log("📝 Transcription:", result.text);
-      console.log("🎭 Mood:", result.mood);
-      console.log("😃 Emotion:", result.emotion);
-    } catch (error) {
-      console.error("❌ Error stopping recording:", error);
+  // Function to get song recommendations
+  const getSongRecommendations = async () => {
+    if (!emotionData) {
+      console.error("No emotion data available for song recommendations");
+      return;
     }
-  };
 
-  const fetchGeoIP = async () => {
+    setRecommendationsLoading(true);
+    setSongRecommendations([]);
+    setRecommendationsError(null);
+
+    console.log("Getting song recommendations based on:", {
+      query: inputValue,
+      emotion: emotionData.emotion,
+      mood: emotionData.mood,
+    });
+
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/fetch_geoip/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json", // ✅ Ensures Django recognizes JSON
-          Accept: "application/json",
-        },
-        body: JSON.stringify({}), // ✅ Send empty object to auto-detect IP
-      });
+      // Call Django backend for recommendations
+      console.log("Fetching song recommendations from backend...");
+
+      const response = await fetch(
+        "http://localhost:8000/api/song_recommendations/",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            query: inputValue,
+            emotion: emotionData.emotion,
+            mood: emotionData.mood,
+          }),
+          credentials: "include",
+        }
+      );
 
       if (!response.ok) {
+        console.error(
+          `Song recommendation request failed with status: ${response.status}`
+        );
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
 
-      const data = await response.json();
-      console.log("GeoIP Data:", data);
+      try {
+        const data = await response.json();
+
+        if (!data || !data.songs || !Array.isArray(data.songs)) {
+          console.error("Invalid response format:", data);
+          throw new Error("Received invalid data format from server");
+        }
+
+        console.log(
+          `Received ${data.songs.length} song recommendations:`,
+          data
+        );
+
+        if (data.songs.length === 0) {
+          setRecommendationsError(
+            "No songs found matching your mood. Try a different input."
+          );
+        } else {
+          setSongRecommendations(data.songs);
+        }
+      } catch (parseError) {
+        console.error("Error parsing response:", parseError);
+        throw new Error("Failed to parse response data");
+      }
     } catch (error) {
-      console.error("Error fetching GeoIP:", error);
+      console.error("Error getting song recommendations:", error);
+      setRecommendationsError(
+        "Failed to get recommendations. Please try again."
+      );
+    } finally {
+      setRecommendationsLoading(false);
     }
   };
+
+  // Function to handle input submission
+  const handleInputSubmit = () => {
+    analyzeEmotion();
+  };
+
+  // Function to open song URL
+  const openSongUrl = (song: Song) => {
+    // Prefer Spotify URL if available, otherwise fallback to Last.fm URL
+    const url = song.spotify_url || song.url;
+    Linking.openURL(url);
+  };
+
+  // Function to fetch weather data - Fixed endpoint URL
+  const recVoice = async () => {};
 
   return (
     <LinearGradient
@@ -379,11 +386,19 @@ export default function Index() {
       {loading ? (
         <ActivityIndicator size="large" color="#e5d8fc" />
       ) : (
-        <>
+        <ScrollView
+          contentContainerStyle={{
+            flexGrow: 1,
+            justifyContent: "center",
+            alignItems: "center",
+            width: "100%",
+          }}
+        >
           <View
             style={{
               alignItems: "center",
               transform: [{ scale: isDesktop ? 0.8 : 1 }],
+              width: "100%",
             }}
           >
             <View style={{ alignItems: "center" }}>
@@ -454,45 +469,220 @@ export default function Index() {
 
             {username && (
               <>
-                <TextInput
-                  className="bg-[#1e1830] text-start px-4 py-3 placeholder:opacity-40 text-[#b0a9d3] m-4 rounded-lg"
-                  placeholder={placeholderText}
-                  placeholderTextColor="#b0a9d3"
-                  style={{
-                    fontSize: RFPercentage(2.5),
-                    fontFamily: "monospace",
-                    height: 55,
-                    width: inputWidth,
-                  }}
-                  value={inputValue}
-                  onChangeText={setInputValue}
-                  onSubmitEditing={() => sendTextForAnalysis(inputValue)} // ✅ Triggers when "Enter" is pressed
-                />
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <TextInput
+                    className="bg-[#1e1830] text-start px-4 py-3 placeholder:opacity-40 text-[#b0a9d3] m-4 rounded-lg"
+                    placeholder={placeholderText}
+                    placeholderTextColor="#b0a9d3"
+                    style={{
+                      fontSize: RFPercentage(2.5),
+                      fontFamily: "monospace",
+                      height: 55,
+                      width: inputWidth,
+                    }}
+                    value={inputValue}
+                    onChangeText={setInputValue}
+                    onSubmitEditing={handleInputSubmit}
+                  />
+                  <TouchableOpacity
+                    onPress={handleInputSubmit}
+                    className="bg-[#4a3b78] p-3 rounded-lg"
+                  >
+                    <Text className="text-white">Analyze</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {emotionLoading && (
+                  <ActivityIndicator
+                    size="small"
+                    color="#e5d8fc"
+                    className="mt-2"
+                  />
+                )}
+
+                {emotionData && (
+                  <View className="mt-4 p-4 bg-[#1a1a2e] rounded-xl w-[80%]">
+                    <Text className="text-white text-lg font-bold mb-2">
+                      Analysis Results
+                    </Text>
+
+                    <View className="flex-row items-center my-1">
+                      <Text className="text-white font-semibold mr-2">
+                        Mood:
+                      </Text>
+                      <Text
+                        style={{
+                          color:
+                            emotionData.mood === "positive"
+                              ? "#4ade80"
+                              : emotionData.mood === "negative"
+                              ? "#f87171"
+                              : "#93c5fd",
+                          fontWeight: "500",
+                        }}
+                      >
+                        {emotionData.mood === "positive"
+                          ? "Positive"
+                          : emotionData.mood === "negative"
+                          ? "Negative"
+                          : "Neutral"}
+                      </Text>
+                    </View>
+
+                    <View className="flex-row items-center my-1">
+                      <Text className="text-white font-semibold mr-2">
+                        Emotion:
+                      </Text>
+                      <Text
+                        style={{
+                          color:
+                            emotionData.emotion === "joy"
+                              ? "#facc15"
+                              : emotionData.emotion === "sadness"
+                              ? "#60a5fa"
+                              : "#d1d5db",
+                          fontWeight: "500",
+                        }}
+                      >
+                        {emotionData.emotion === "joy"
+                          ? "Joy"
+                          : emotionData.emotion === "sadness"
+                          ? "Sadness"
+                          : "Neutral"}
+                      </Text>
+                    </View>
+
+                    <Text
+                      style={{
+                        color: "#9ca3af",
+                        fontSize: 14,
+                        marginTop: 8,
+                        marginBottom: 12,
+                      }}
+                    >
+                      {emotionData.mood === "positive"
+                        ? "You sound happy! Let's find some upbeat music for you."
+                        : emotionData.mood === "negative"
+                        ? "Sounds like you might need some comforting music."
+                        : "Let's find some music that matches your vibe."}
+                    </Text>
+
+                    <TouchableOpacity
+                      onPress={getSongRecommendations}
+                      className="bg-[#4a3b78] p-3 rounded-lg mt-3 items-center"
+                      disabled={recommendationsLoading}
+                    >
+                      <Text className="text-white">
+                        {recommendationsLoading
+                          ? "Finding Songs..."
+                          : "Get Song Recommendations"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {recommendationsLoading && (
+                  <ActivityIndicator
+                    size="large"
+                    color="#e5d8fc"
+                    className="mt-4"
+                  />
+                )}
+
+                {recommendationsError && (
+                  <Text className="text-red-500 mt-4">
+                    {recommendationsError}
+                  </Text>
+                )}
+
+                {songRecommendations.length > 0 && (
+                  <View className="mt-6 p-4 bg-[#1a1a2e] rounded-xl w-[90%]">
+                    <Text className="text-white text-lg font-bold mb-3">
+                      Song Recommendations
+                    </Text>
+                    {songRecommendations.map((song, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        className="p-3 border-b border-gray-700 flex-row items-center mb-2"
+                        onPress={() => openSongUrl(song)}
+                        style={{
+                          backgroundColor: "rgba(30, 30, 50, 0.6)",
+                          borderRadius: 8,
+                          marginBottom: 10,
+                          padding: 12,
+                        }}
+                      >
+                        {song.image_url && (
+                          <View
+                            style={{
+                              width: 60,
+                              height: 60,
+                              marginRight: 15,
+                              borderRadius: 6,
+                              overflow: "hidden",
+                              backgroundColor: "#333",
+                            }}
+                          >
+                            <img
+                              src={song.image_url}
+                              alt={`${song.name} cover`}
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
+                              }}
+                            />
+                          </View>
+                        )}
+                        <View className="flex-1">
+                          <Text className="text-white font-bold text-base">
+                            {song.name}
+                          </Text>
+                          <Text className="text-gray-400">{song.artist}</Text>
+                          {song.spotify_url && (
+                            <Text className="text-[#1DB954] text-xs mt-1">
+                              Open in Spotify
+                            </Text>
+                          )}
+                        </View>
+                        <MaterialIcons
+                          name={song.spotify_url ? "music-note" : "open-in-new"}
+                          size={24}
+                          color={song.spotify_url ? "#1DB954" : "#e5d8fc"}
+                        />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
 
                 {/* Weather Feature */}
-                <View style={{ alignItems: "center", marginTop: 20 }}>
+                <View className="mt-6 items-center">
                   <TouchableOpacity
-                    onPress={isRecording ? stopRecording : startRecording} // Toggle function
-                    style={{
-                      backgroundColor: isRecording ? "red" : "green", // Dynamic button color
-                      padding: 12,
-                      borderRadius: 10,
-                      marginBottom: 10,
-                    }}
+                    className="bg-blue-500 p-4 rounded-2xl"
+                    onPress={recVoice}
                   >
-                    <Text style={{ color: "white", fontWeight: "bold" }}>
-                      {isRecording ? "Stop Recording" : "Start Recording"}{" "}
-                      {/* Dynamic text */}
+                    <Text className="text-white font-bold">
+                      Start recording
                     </Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => {
-                      fetchGeoIP();
-                    }}
-                    className="bg-orange-300 rounded-lg p-2 "
-                  >
-                    <Text className="font-bold">Fetch GeoIP</Text>
-                  </TouchableOpacity>
+
+                  {weatherLoading && (
+                    <ActivityIndicator
+                      size="large"
+                      color="#ffffff"
+                      className="mt-4"
+                    />
+                  )}
+
+                  {weatherError && (
+                    <Text className="text-red-500 mt-4">{weatherError}</Text>
+                  )}
+
+                  {weather && (
+                    <View className="mt-4 p-4 bg-gray-800 rounded-xl w-64">
+                      <Text>Region: {weather?.region || "Unknown"}</Text>
+                    </View>
+                  )}
                 </View>
               </>
             )}
@@ -508,7 +698,7 @@ export default function Index() {
               }}
             ></View>
           )}
-        </>
+        </ScrollView>
       )}
     </LinearGradient>
   );

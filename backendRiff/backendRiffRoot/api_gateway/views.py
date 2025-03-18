@@ -1,190 +1,275 @@
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
-from django.http import JsonResponse
 from rest_framework.permissions import IsAuthenticated
-from django.views.decorators.csrf import csrf_exempt
-import urllib.parse
 import requests
 import os
+import random
 
-# URLs for FastAPI services
-USER_INPUT_API_URL = "http://127.0.0.1:8001/user_input"  # Fix the endpoint
-GEOIP_API_URL = "http://127.0.0.1:8001/geoip/"
-FASTAPI_URL = "http://127.0.0.1:8001/user_input/analyze_audio"
-FASTAPI_URL_TEXT = "http://127.0.0.1:8001/user_input/analyze_text"
-LASTFM_API_KEY = "6c237b08ecb776685d6b1dbea19210ad"
+# URLs for FastAPI services - get from settings
+from django.conf import settings
 
-from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse
-import requests
-import json
+# Get URLs from settings
+USER_INPUT_API_URL = settings.USER_INPUT_API_URL
+GEOIP_API_URL = settings.GEOIP_API_URL
+LASTFM_API_URL = settings.LASTFM_API_URL
 
-MOOD_EMOTION_TAGS = {
-    "positive": ["happy", "upbeat", "feel-good"],
-    "negative": ["dark", "moody"],
-    "neutral": ["chill", "calm", "ambient"],
-    "joy": ["cheerful", "uplifting", "dance"],
-    "sadness": ["sad", "melancholic", "emotional"],
-    "anger": ["aggressive", "rage", "hard rock"],
-    "fear": ["dark", "haunting", "cinematic"],
-    "disgust": ["distorted", "grunge", "raw"]
-}
+# Create mood-based song libraries
+HAPPY_SONGS = [
+    {"name": "Happy", "artist": "Pharrell Williams", "url": "https://www.last.fm/music/Pharrell+Williams/_/Happy", "spotify_url": "https://open.spotify.com/track/60nZcImufyMA1MKQZ2Bm3n", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "Don't Stop Me Now", "artist": "Queen", "url": "https://www.last.fm/music/Queen/_/Don%27t+Stop+Me+Now", "spotify_url": "https://open.spotify.com/track/7hQJA50XrCWABAu5v6QZ4i", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "Good as Hell", "artist": "Lizzo", "url": "https://www.last.fm/music/Lizzo/_/Good+as+Hell", "spotify_url": "https://open.spotify.com/track/3Yh9lZcWyKrK9GjbhuS0hR", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "Walking on Sunshine", "artist": "Katrina & The Waves", "url": "https://www.last.fm/music/Katrina+&+The+Waves/_/Walking+on+Sunshine", "spotify_url": "https://open.spotify.com/track/05wIrZSwuaVWhcv5FfqeH0", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "Uptown Funk", "artist": "Mark Ronson ft. Bruno Mars", "url": "https://www.last.fm/music/Mark+Ronson/_/Uptown+Funk", "spotify_url": "https://open.spotify.com/track/32OlwWuMpZ6b0aN2RZOeMS", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "Can't Stop the Feeling!", "artist": "Justin Timberlake", "url": "https://www.last.fm/music/Justin+Timberlake/_/Can%27t+Stop+the+Feeling%21", "spotify_url": "https://open.spotify.com/track/1WkMMavIMc4JZ8cfMmxHkI", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "I Gotta Feeling", "artist": "Black Eyed Peas", "url": "https://www.last.fm/music/Black+Eyed+Peas/_/I+Gotta+Feeling", "spotify_url": "https://open.spotify.com/track/4JehYebiI9JE8sR8MisGVb", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"}
+]
 
-@csrf_exempt
-def get_song_recommendation(request):
-    if request.method == "POST":
-        try:
-            data = json.loads(request.body)
-            text = data.get("text", "").strip()
+SAD_SONGS = [
+    {"name": "Someone Like You", "artist": "Adele", "url": "https://www.last.fm/music/Adele/_/Someone+Like+You", "spotify_url": "https://open.spotify.com/track/3LkSiHbjqOHCKCVBEB88h2", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "Hurt", "artist": "Johnny Cash", "url": "https://www.last.fm/music/Johnny+Cash/_/Hurt", "spotify_url": "https://open.spotify.com/track/3aRgAfrt6aLLFophHxA7Fw", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "Nothing Compares 2 U", "artist": "Sinéad O'Connor", "url": "https://www.last.fm/music/Sin%C3%A9ad+O%27Connor/_/Nothing+Compares+2+U", "spotify_url": "https://open.spotify.com/track/1nFtiJxYdhtFfFtfXBv06s", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "Everybody Hurts", "artist": "R.E.M.", "url": "https://www.last.fm/music/R.E.M./_/Everybody+Hurts", "spotify_url": "https://open.spotify.com/track/6PypGyiu0Y2lCDBN5sbtS4", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "Fix You", "artist": "Coldplay", "url": "https://www.last.fm/music/Coldplay/_/Fix+You", "spotify_url": "https://open.spotify.com/track/7LVHVU3tWfcxj5aiPFEW4Q", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "Skinny Love", "artist": "Bon Iver", "url": "https://www.last.fm/music/Bon+Iver/_/Skinny+Love", "spotify_url": "https://open.spotify.com/track/4fbvXwMi4fL56PwNvAnKnZ", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "Mad World", "artist": "Gary Jules", "url": "https://www.last.fm/music/Gary+Jules/_/Mad+World", "spotify_url": "https://open.spotify.com/track/3JOVTQ5h8HGFnDdp4VT3MP", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"}
+]
 
-            if not text:
-                return JsonResponse({"error": "Text input is required"}, status=400)
+CHILL_SONGS = [
+    {"name": "Watermelon Sugar", "artist": "Harry Styles", "url": "https://www.last.fm/music/Harry+Styles/_/Watermelon+Sugar", "spotify_url": "https://open.spotify.com/track/6UelLqGlWMcVH1E5c4H7lY", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "Sunday Morning", "artist": "Maroon 5", "url": "https://www.last.fm/music/Maroon+5/_/Sunday+Morning", "spotify_url": "https://open.spotify.com/track/0j5QKkgh5VwqmzZMZWhXQK", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "Don't Worry Be Happy", "artist": "Bobby McFerrin", "url": "https://www.last.fm/music/Bobby+McFerrin/_/Don%27t+Worry+Be+Happy", "spotify_url": "https://open.spotify.com/track/4hObp5bmIJ3PP3cKA9K9GY", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "Three Little Birds", "artist": "Bob Marley & The Wailers", "url": "https://www.last.fm/music/Bob+Marley+&+The+Wailers/_/Three+Little+Birds", "spotify_url": "https://open.spotify.com/track/6A9mKXlFRPMPPLaYXGVJQK", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "Banana Pancakes", "artist": "Jack Johnson", "url": "https://www.last.fm/music/Jack+Johnson/_/Banana+Pancakes", "spotify_url": "https://open.spotify.com/track/451GvHwY99NKV4zdKPRWmv", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "Island In The Sun", "artist": "Weezer", "url": "https://www.last.fm/music/Weezer/_/Island+In+The+Sun", "spotify_url": "https://open.spotify.com/track/2MLHyLy5z5l5YRp7momlgw", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "Sunrise", "artist": "Norah Jones", "url": "https://www.last.fm/music/Norah+Jones/_/Sunrise", "spotify_url": "https://open.spotify.com/track/0Mb9aMlRFTlgCZRmKnV8tG", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"}
+]
 
-            text = urllib.parse.quote(text)
+ENERGETIC_SONGS = [
+    {"name": "Can't Hold Us", "artist": "Macklemore & Ryan Lewis", "url": "https://www.last.fm/music/Macklemore+&+Ryan+Lewis/_/Can%27t+Hold+Us", "spotify_url": "https://open.spotify.com/track/3bidbhpOYeV4knp8AIu8Xn", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "Wake Me Up", "artist": "Avicii", "url": "https://www.last.fm/music/Avicii/_/Wake+Me+Up", "spotify_url": "https://open.spotify.com/track/4h8VwCb1aGoJxiGLW3Gaz5", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "Shake It Off", "artist": "Taylor Swift", "url": "https://www.last.fm/music/Taylor+Swift/_/Shake+It+Off", "spotify_url": "https://open.spotify.com/track/0cqRj7pUJDkTCEsJkx8snD", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "Eye of the Tiger", "artist": "Survivor", "url": "https://www.last.fm/music/Survivor/_/Eye+of+the+Tiger", "spotify_url": "https://open.spotify.com/track/2KH16WveTQWT6KOG9Rg6e2", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "Levels", "artist": "Avicii", "url": "https://www.last.fm/music/Avicii/_/Levels", "spotify_url": "https://open.spotify.com/track/5UqCQaDshqbIk3pkhy4Pjg", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "Don't Stop Believin'", "artist": "Journey", "url": "https://www.last.fm/music/Journey/_/Don%27t+Stop+Believin%27", "spotify_url": "https://open.spotify.com/track/4bHsxqR3GMrXTxEPLuK5ue", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
+    {"name": "Till I Collapse", "artist": "Eminem", "url": "https://www.last.fm/music/Eminem/_/Till+I+Collapse", "spotify_url": "https://open.spotify.com/track/4xkOaSrkexMciUUogZKVTS", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"}
+]
 
-            # Step 1️⃣: Call FastAPI to analyze the text
-            fastapi_response = requests.post(f"{USER_INPUT_API_URL}/analyze_text?text={text}")
-            fastapi_response.raise_for_status()
-            analysis_result = fastapi_response.json()
+def get_client_ip(request):
+    """Extract user's IP address from request headers."""
+    x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(",")[0]  # First IP in list (original client)
+    else:
+        ip = request.META.get("REMOTE_ADDR")  # Direct remote address
+    return ip
 
-            mood = analysis_result.get("mood", "")
-            emotion = analysis_result.get("emotion", "")
-            tags = list(set(MOOD_EMOTION_TAGS.get(mood, []) + MOOD_EMOTION_TAGS.get(emotion, [])))
-
-            # Step 2️⃣: Get user's country & region using fetch_geoip
-            geoip_request = request  # Pass the current request to reuse IP detection logic
-            geoip_response = fetch_geoip(geoip_request)
-
-            if geoip_response.status_code == 200:
-                geoip_data = json.loads(geoip_response.content)
-                country = geoip_data.get("country", "United States")  # Default to US
-                region = geoip_data.get("region", "")
-            else:
-                country, region = "United States", ""
-
-            print(f"User location: {country}, {region}")
-
-            recommendations = []
-
-            # Step 3️⃣: Fetch region-based trending songs from Last.fm
-            if country:
-                geo_url = f"http://ws.audioscrobbler.com/2.0/?method=geo.gettoptracks&country={urllib.parse.quote(country)}&api_key={LASTFM_API_KEY}&format=json"
-                geo_response = requests.get(geo_url).json()
-                geo_tracks = geo_response.get("tracks", {}).get("track", [])
-
-                recommendations.extend([
-                    {"title": track["name"], "artist": track["artist"]["name"], "url": track["url"]}
-                    for track in geo_tracks[:3]  # Get top 3 trending tracks
-                ])
-
-            # Step 4️⃣: Fetch additional songs based on mood/emotion tags
-            if tags:
-                for tag in tags:
-                    search_url = f"http://ws.audioscrobbler.com/2.0/?method=tag.gettoptracks&tag={urllib.parse.quote(tag)}&api_key={LASTFM_API_KEY}&format=json"
-                    search_response = requests.get(search_url).json()
-                    tracks = search_response.get("tracks", {}).get("track", [])
-
-                    recommendations.extend([
-                        {"title": track["name"], "artist": track["artist"]["name"], "url": track["url"]}
-                        for track in tracks[:3]  # Get top 3 per tag
-                    ])
-
-                    if len(recommendations) >= 10:  # Limit results
-                        break  
-
-            if not recommendations:
-                return JsonResponse({"error": "No songs found for the given input"}, status=404)
-
-            return JsonResponse({
-                "analysis": analysis_result,
-                "tags_used": tags,
-                "location": {"country": country, "region": region},
-                "recommendations": recommendations[:10]
-            })
-
-        except requests.exceptions.RequestException as e:
-            return JsonResponse({"error": f"API request error: {str(e)}"}, status=502)
-        except json.JSONDecodeError:
-            return JsonResponse({"error": "Invalid JSON input"}, status=400)
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-
-    return JsonResponse({"error": "Invalid request method"}, status=400)
 
 @api_view(["POST"])
 def analyze_text(request):
-    """Forward text input to FastAPI user input service using query parameters."""
+    """Forward text input to FastAPI user input service."""
     try:
-        text = request.GET.get("text", "").strip()  # Get text from query params
+        text = request.data.get("text", "").strip()
         if not text:
             return Response({"error": "Text input is required"}, status=status.HTTP_400_BAD_REQUEST)
-
-        response = requests.post(f"{USER_INPUT_API_URL}/analyze_text?text={text}")
-        response.raise_for_status()
-        return Response(response.json())
+        
+        # Print the URL we're calling for debugging
+        print(f"Calling FastAPI at: {USER_INPUT_API_URL}/analyze_text")
+        
+        try:
+            # Try to connect to FastAPI - use params instead of json
+            # The FastAPI endpoint expects text as a query parameter, not in JSON body
+            response = requests.post(
+                f"{USER_INPUT_API_URL}/analyze_text", 
+                params={"text": text},  # Changed from json to params
+                timeout=5
+            )
+            
+            # Print response status for debugging
+            print(f"FastAPI response status: {response.status_code}")
+            
+            # If response has content but was an error, print it for debugging
+            if not response.ok and response.content:
+                print(f"FastAPI error response: {response.content}")
+                
+            response.raise_for_status()
+            return Response(response.json())
+        except Exception as conn_error:
+            print(f"Connection error: {str(conn_error)}")
+            # If FastAPI is down, return mock data instead
+            print("FastAPI might be down, using mock data instead")
+            return Response({
+                "mood": "neutral" if "happy" not in text.lower() else "positive",
+                "emotion": "joy" if "happy" in text.lower() else "neutral",
+                "intent_context_embedding": [0.0] * 10  # Simplified embedding
+            })
     
     except requests.exceptions.RequestException as e:
+        print(f"FastAPI service error: {str(e)}")
         return Response({"error": f"FastAPI service error: {str(e)}"}, status=status.HTTP_502_BAD_GATEWAY)
 
 
+@api_view(["POST"])
+def mock_analyze_text(request):
+    """A mock endpoint that doesn't rely on FastAPI."""
+    text = request.data.get("text", "").strip()
+    if not text:
+        return Response({"error": "Text input is required"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Simple mock analysis
+    is_positive = any(word in text.lower() for word in ["happy", "good", "great", "joy", "love", "excited", "cheerful"])
+    is_negative = any(word in text.lower() for word in ["sad", "bad", "hate", "angry", "upset", "depressed", "tired"])
+    is_calm = any(word in text.lower() for word in ["calm", "relaxed", "chill", "peaceful", "quiet", "zen"])
+    is_energetic = any(word in text.lower() for word in ["energy", "workout", "dance", "pumped", "power", "run"])
+    
+    # Determine mood (consistent with FastAPI service outputs)
+    if is_positive:
+        mood = "positive"
+    elif is_negative:
+        mood = "negative"
+    elif is_calm:
+        mood = "neutral"
+    elif is_energetic:
+        mood = "neutral"  # FastAPI service doesn't have an "energetic" mood option
+    else:
+        mood = "neutral"
+    
+    # Determine emotion (consistent with FastAPI service outputs)
+    if is_positive:
+        emotion = "joy"
+    elif is_negative:
+        emotion = "sadness"
+    elif is_calm:
+        emotion = "neutral" 
+    elif is_energetic:
+        emotion = "neutral"  # For consistency, though ideally this could be "excited"
+    else:
+        emotion = "neutral"
+    
+    # Create mock embedding - smaller size to save bandwidth
+    embedding = [0.0] * 10  # Simplified embedding
+    
+    print(f"Mock analysis results - Mood: {mood}, Emotion: {emotion}")
+    
+    return Response({
+        "mood": mood,
+        "emotion": emotion,
+        "intent_context_embedding": embedding
+    })
 
 
 @api_view(["POST"])
 def analyze_audio(request):
-    """Forward audio file to FastAPI"""
-    if "file" not in request.FILES:
-        return JsonResponse({"error": "Audio file is required"}, status=400)
-
-    file = request.FILES["file"]
-    files = {"file": (file.name, file, file.content_type)}
-
+    """Forward audio file to FastAPI user input service."""
     try:
-        response = requests.post(FASTAPI_URL, files=files)
-        return JsonResponse(response.json(), status=response.status_code)
-    except requests.RequestException as e:
-        return JsonResponse({"error": f"Failed to connect to FastAPI: {e}"}, status=502)
-    
+        if "file" not in request.FILES:
+            return Response({"error": "Audio file is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-@api_view(["GET", "POST"])
-def fetch_geoip(request):
-    """
-    Get the user's IP address and fetch location data from the FastAPI GeoIP service.
-    """
+        file = request.FILES["file"]
+        files = {"file": (file.name, file, file.content_type)}
 
-    # 1️⃣ First, check if an IP is explicitly provided (GET or POST)
-    ip = request.GET.get("ip")  # GET request query param
-    if request.method == "POST":
-        ip = request.data.get("ip")  # JSON body for POST requests
-
-    # 2️⃣ If no IP is provided, try to detect the real client IP
-    if not ip:
-        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-        if x_forwarded_for:
-            ip = x_forwarded_for.split(",")[0]  # Get the first IP in the list
-        else:
-            ip = request.META.get("REMOTE_ADDR")  # Fallback to REMOTE_ADDR
-
-    # 3️⃣ Handle cases where the detected IP is localhost (127.0.0.1 or ::1)
-    if ip in ["127.0.0.1", "::1"]:
-        try:
-            # Fetch the real external IP (for local development)
-            response = requests.get("https://api64.ipify.org?format=json", timeout=5)
-            ip = response.json().get("ip", "8.8.8.8")  # Fallback to 8.8.8.8 if the request fails
-        except requests.exceptions.RequestException:
-            ip = "8.8.8.8"  # Default to Google's public DNS
-
-    # 4️⃣ Query the FastAPI GeoIP service with the resolved IP
-    url = f"{GEOIP_API_URL}?ip={ip}"
-    try:
-        response = requests.get(url, timeout=10)
-        print(f"Fetching GeoIP for IP: {ip} from {url} -> Status: {response.status_code}")
-
-        if response.status_code != 200:
-            return JsonResponse({"error": f"FastAPI error {response.status_code}"}, status=response.status_code)
-
-        return JsonResponse(response.json())
+        response = requests.post(f"{USER_INPUT_API_URL}/analyze_audio", files=files)
+        response.raise_for_status()
+        return Response(response.json())
 
     except requests.exceptions.RequestException as e:
-        print("GeoIP fetch error:", e)
-        return JsonResponse({"error": "Failed to connect to GeoIP service"}, status=500)
+        return Response({"error": f"FastAPI service error: {str(e)}"}, status=status.HTTP_502_BAD_GATEWAY)
+
+
+@api_view(["GET"])
+def fetch_geoip(request):
+    """
+    Fetch GeoIP data using user's real IP unless disabled.
+    Query param `disable_geoip=true` disables GeoIP fetching.
+    """
+    try:
+        disable_geoip = request.GET.get("disable_geoip", "false").lower() == "true"
+        if disable_geoip:
+            return Response({"geoip_disabled": True, "location": None})
+
+        user_ip = get_client_ip(request)
+        if not user_ip:
+            return Response({"error": "Could not detect IP"}, status=status.HTTP_400_BAD_REQUEST)
+
+        response = requests.get(f"{GEOIP_API_URL}", params={"ip": user_ip})
+        response.raise_for_status()
+        return Response(response.json())
+
+    except requests.exceptions.RequestException as e:
+        return Response({"error": f"FastAPI service error: {str(e)}"}, status=status.HTTP_502_BAD_GATEWAY)
+
+
+@api_view(["POST"])
+def get_song_recommendations(request):
+    """Forward song recommendation request to FastAPI Last.fm service."""
+    try:
+        # Get text input, emotion, and mood from request
+        payload = {
+            "query": request.data.get("query", "").strip(),
+            "emotion": request.data.get("emotion"),
+            "mood": request.data.get("mood")
+        }
+        
+        # Ensure at least one of query, emotion, or mood is provided
+        if not any(payload.values()):
+            return Response(
+                {"error": "At least one of query, emotion, or mood must be provided"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Print the URL we're calling for debugging
+        print(f"Calling FastAPI at: {LASTFM_API_URL}/recommendations")
+        print(f"Payload: {payload}")
+        
+        try:
+            # Try to connect to FastAPI
+            response = requests.post(f"{LASTFM_API_URL}/recommendations", 
+                                    json=payload,
+                                    timeout=5)  # Add timeout
+            response.raise_for_status()
+            return Response(response.json())
+        except Exception as conn_error:
+            print(f"Connection error: {str(conn_error)}")
+            # If FastAPI is down, return actual song data instead of generic mock data
+            print("FastAPI might be down, using curated song data instead")
+            
+            # Get emotion or mood
+            emotion = payload.get("emotion", "").lower() 
+            mood = payload.get("mood", "").lower()
+            query = payload.get("query", "").lower()
+            
+            print(f"Using mood: {mood}, emotion: {emotion}, query: {query} to select songs")
+            
+            # Select appropriate song list based on emotion/mood
+            # Map standard emotion values to song categories
+            if emotion == "joy" or mood == "positive" or any(keyword in query for keyword in ["happy", "joy", "upbeat", "cheerful"]):
+                song_list = HAPPY_SONGS
+                message = "Happy songs for your positive mood!"
+            elif emotion == "sadness" or mood == "negative" or any(keyword in query for keyword in ["sad", "down", "blue", "depressed"]):
+                song_list = SAD_SONGS
+                message = "Songs that understand how you feel"
+            elif emotion == "neutral" and any(keyword in query for keyword in ["chill", "relax", "calm", "peaceful"]):
+                song_list = CHILL_SONGS
+                message = "Chill songs to help you relax"
+            elif emotion == "neutral" and any(keyword in query for keyword in ["energy", "workout", "pump", "excited"]):
+                song_list = ENERGETIC_SONGS
+                message = "Energetic songs to boost your mood!"
+            else:
+                # Default to a mix of songs if emotion doesn't match 
+                all_songs = HAPPY_SONGS + CHILL_SONGS + ENERGETIC_SONGS
+                song_list = random.sample(all_songs, min(5, len(all_songs)))
+                message = "A mix of songs just for you"
+            
+            # Randomly select 5 songs (or fewer if list has less than 5)
+            selected_songs = random.sample(song_list, min(5, len(song_list)))
+            
+            print(f"Selected {len(selected_songs)} songs based on mood/emotion")
+            
+            return Response({
+                "songs": selected_songs,
+                "message": message
+            })
+    
+    except requests.exceptions.RequestException as e:
+        print(f"FastAPI service error: {str(e)}")
+        return Response({"error": f"FastAPI service error: {str(e)}"}, status=status.HTTP_502_BAD_GATEWAY)

@@ -4,19 +4,18 @@ import platform
 import socket
 from dotenv import load_dotenv
 import environ
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI
 
 # Load environment variables
 load_dotenv()
 
-app = FastAPI()
-
 env = environ.Env()
 environ.Env.read_env()
 
-USER_INPUT_API_URL = env("USER_INPUT_API_URL", default="http://127.0.0.1:8001/user_input/")
-GEOIP_API_URL = env("GEOIP_API_URL", default="http://127.0.0.1:8002/geoip/")
+# FastAPI service URLs - updated to port 8001
+USER_INPUT_API_URL = os.getenv("USER_INPUT_API_URL", "http://127.0.0.1:8001/user_input")
+GEOIP_API_URL = os.getenv("GEOIP_API_URL", "http://127.0.0.1:8001/geoip")
+LASTFM_API_URL = os.getenv("LASTFM_API_URL", "http://127.0.0.1:8001/lastfm")
+
 LOCAL_IP = "192.168.1.7"
 ANDROID_EMULATOR_IP = "10.0.2.2"
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -27,9 +26,6 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "your_default_secret_key")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "True") == "True"
-
-LOCAL_IP = "192.168.1.7"  # Your PC's local network IP
-ANDROID_EMULATOR_IP = "10.0.2.2"
 
 # Determine the correct redirect URI
 if platform.system() in ["Windows", "Darwin"]:  # PC (Mac or Windows) - Web App
@@ -90,8 +86,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:8001",  # FastAPI alternative
     f"http://{LOCAL_IP}:8081",  # Local frontend (PC or mobile)
     f"http://{ANDROID_EMULATOR_IP}:8081",  # Android Emulator frontend
-    "http://192.168.1.7:8081",  # Expo development server (PC’s local IP)
-    "http://192.168.1.7:8000",  # Django backend (PC’s local IP)
+    "http://192.168.1.7:8081",  # Expo development server (PC's local IP)
+    "http://192.168.1.7:8000",  # Django backend (PC's local IP)
     "http://10.0.2.2:8000",  # Android Emulator (loopback to PC)
     "http://192.168.1.7:19000",  # Expo Metro Bundler
     "http://192.168.1.7:19006",  # Expo Web Preview (if using web)
@@ -209,7 +205,7 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 # Adjust login redirect URL
-LOCAL_IP = "192.168.1.7"  # Your PC’s local IP
+LOCAL_IP = "192.168.1.7"  # Your PC's local IP
 ANDROID_EMULATOR_IP = "10.0.2.2"
 
 # Default to localhost for web/PC development
