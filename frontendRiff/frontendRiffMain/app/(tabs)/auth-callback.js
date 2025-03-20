@@ -58,7 +58,10 @@ export default function AuthCallbackScreen() {
       const response = await fetch("http://localhost:8000/api/auth/spotify-token/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ 
+          code, 
+          platform: "web"
+        }),
       });
 
       const data = await response.json();

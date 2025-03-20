@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from services.geoip_service import geoip_router
 from services.userinput_service import input_router
 from services.lastfm_service import lastfm_router
+from services.musicbrainz_service import musicbrainz_router
 """from services.ai_model_service import ai_model_router"""
 
 app = FastAPI()
@@ -21,6 +22,7 @@ app.add_middleware(
 app.include_router(geoip_router, prefix="/geoip", tags=["GeoIP"])
 app.include_router(input_router, prefix="/user_input", tags=["User Input"])
 app.include_router(lastfm_router, prefix="/lastfm", tags=["Last.fm"])
+app.include_router(musicbrainz_router, prefix="/musicbrainz", tags=["MusicBrainz"])
 """app.include_router(ai_model_router, prefix="/ai_model", tags=["AI Model"])"""
 
 @app.get("/")

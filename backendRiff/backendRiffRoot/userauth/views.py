@@ -71,8 +71,11 @@ def spotify_callback(request):
 
     redirect_uri = get_redirect_uri(platform)
 
+    # Debug logging
     logger.info(f"Received authorization code for platform: {platform}")
     logger.info(f"Using redirect URI: {redirect_uri}")
+    logger.info(f"Client ID: {SPOTIFY_CLIENT_ID}")
+    logger.info(f"Client Secret present: {'Yes' if SPOTIFY_CLIENT_SECRET else 'No'}")
 
     # Exchange authorization code for an access token
     payload = {
@@ -83,13 +86,19 @@ def spotify_callback(request):
         "client_secret": SPOTIFY_CLIENT_SECRET,
     }
 
+    logger.info(f"Sending token request with payload: {payload}")
+
     response = requests.post(SPOTIFY_TOKEN_URL, data=payload)
+    
+    logger.info(f"Spotify token response status: {response.status_code}")
     
     try:
         token_data = response.json()
         if response.status_code == 200:
+            logger.info("Successfully obtained access token")
             return Response(token_data)
         else:
+            logger.error(f"Token exchange failed: {token_data}")
             return Response({"error": "Failed to exchange token", "details": token_data}, status=response.status_code)
     except requests.exceptions.JSONDecodeError:
         logger.error("Invalid response from Spotify")

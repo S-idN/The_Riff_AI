@@ -7,7 +7,7 @@ export default function About() {
     <View className="flex-1 justify-center items-center h-svh bg-[#0f0325] text-[#e5d8fc]">
       <Text className="text-[#e5d8fc] font-semibold">This was a mistake</Text>
       <Link className="text-[#e5d8fc]" href={"/"}>
-        Go Home
+        Never Link this
       </Link>
     </View>
   );

@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 import requests
 import os
 import random
+import json
 
 # URLs for FastAPI services - get from settings
 from django.conf import settings
@@ -13,47 +14,6 @@ from django.conf import settings
 USER_INPUT_API_URL = settings.USER_INPUT_API_URL
 GEOIP_API_URL = settings.GEOIP_API_URL
 LASTFM_API_URL = settings.LASTFM_API_URL
-
-# Create mood-based song libraries
-HAPPY_SONGS = [
-    {"name": "Happy", "artist": "Pharrell Williams", "url": "https://www.last.fm/music/Pharrell+Williams/_/Happy", "spotify_url": "https://open.spotify.com/track/60nZcImufyMA1MKQZ2Bm3n", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "Don't Stop Me Now", "artist": "Queen", "url": "https://www.last.fm/music/Queen/_/Don%27t+Stop+Me+Now", "spotify_url": "https://open.spotify.com/track/7hQJA50XrCWABAu5v6QZ4i", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "Good as Hell", "artist": "Lizzo", "url": "https://www.last.fm/music/Lizzo/_/Good+as+Hell", "spotify_url": "https://open.spotify.com/track/3Yh9lZcWyKrK9GjbhuS0hR", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "Walking on Sunshine", "artist": "Katrina & The Waves", "url": "https://www.last.fm/music/Katrina+&+The+Waves/_/Walking+on+Sunshine", "spotify_url": "https://open.spotify.com/track/05wIrZSwuaVWhcv5FfqeH0", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "Uptown Funk", "artist": "Mark Ronson ft. Bruno Mars", "url": "https://www.last.fm/music/Mark+Ronson/_/Uptown+Funk", "spotify_url": "https://open.spotify.com/track/32OlwWuMpZ6b0aN2RZOeMS", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "Can't Stop the Feeling!", "artist": "Justin Timberlake", "url": "https://www.last.fm/music/Justin+Timberlake/_/Can%27t+Stop+the+Feeling%21", "spotify_url": "https://open.spotify.com/track/1WkMMavIMc4JZ8cfMmxHkI", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "I Gotta Feeling", "artist": "Black Eyed Peas", "url": "https://www.last.fm/music/Black+Eyed+Peas/_/I+Gotta+Feeling", "spotify_url": "https://open.spotify.com/track/4JehYebiI9JE8sR8MisGVb", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"}
-]
-
-SAD_SONGS = [
-    {"name": "Someone Like You", "artist": "Adele", "url": "https://www.last.fm/music/Adele/_/Someone+Like+You", "spotify_url": "https://open.spotify.com/track/3LkSiHbjqOHCKCVBEB88h2", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "Hurt", "artist": "Johnny Cash", "url": "https://www.last.fm/music/Johnny+Cash/_/Hurt", "spotify_url": "https://open.spotify.com/track/3aRgAfrt6aLLFophHxA7Fw", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "Nothing Compares 2 U", "artist": "Sinéad O'Connor", "url": "https://www.last.fm/music/Sin%C3%A9ad+O%27Connor/_/Nothing+Compares+2+U", "spotify_url": "https://open.spotify.com/track/1nFtiJxYdhtFfFtfXBv06s", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "Everybody Hurts", "artist": "R.E.M.", "url": "https://www.last.fm/music/R.E.M./_/Everybody+Hurts", "spotify_url": "https://open.spotify.com/track/6PypGyiu0Y2lCDBN5sbtS4", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "Fix You", "artist": "Coldplay", "url": "https://www.last.fm/music/Coldplay/_/Fix+You", "spotify_url": "https://open.spotify.com/track/7LVHVU3tWfcxj5aiPFEW4Q", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "Skinny Love", "artist": "Bon Iver", "url": "https://www.last.fm/music/Bon+Iver/_/Skinny+Love", "spotify_url": "https://open.spotify.com/track/4fbvXwMi4fL56PwNvAnKnZ", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "Mad World", "artist": "Gary Jules", "url": "https://www.last.fm/music/Gary+Jules/_/Mad+World", "spotify_url": "https://open.spotify.com/track/3JOVTQ5h8HGFnDdp4VT3MP", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"}
-]
-
-CHILL_SONGS = [
-    {"name": "Watermelon Sugar", "artist": "Harry Styles", "url": "https://www.last.fm/music/Harry+Styles/_/Watermelon+Sugar", "spotify_url": "https://open.spotify.com/track/6UelLqGlWMcVH1E5c4H7lY", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "Sunday Morning", "artist": "Maroon 5", "url": "https://www.last.fm/music/Maroon+5/_/Sunday+Morning", "spotify_url": "https://open.spotify.com/track/0j5QKkgh5VwqmzZMZWhXQK", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "Don't Worry Be Happy", "artist": "Bobby McFerrin", "url": "https://www.last.fm/music/Bobby+McFerrin/_/Don%27t+Worry+Be+Happy", "spotify_url": "https://open.spotify.com/track/4hObp5bmIJ3PP3cKA9K9GY", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "Three Little Birds", "artist": "Bob Marley & The Wailers", "url": "https://www.last.fm/music/Bob+Marley+&+The+Wailers/_/Three+Little+Birds", "spotify_url": "https://open.spotify.com/track/6A9mKXlFRPMPPLaYXGVJQK", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "Banana Pancakes", "artist": "Jack Johnson", "url": "https://www.last.fm/music/Jack+Johnson/_/Banana+Pancakes", "spotify_url": "https://open.spotify.com/track/451GvHwY99NKV4zdKPRWmv", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "Island In The Sun", "artist": "Weezer", "url": "https://www.last.fm/music/Weezer/_/Island+In+The+Sun", "spotify_url": "https://open.spotify.com/track/2MLHyLy5z5l5YRp7momlgw", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "Sunrise", "artist": "Norah Jones", "url": "https://www.last.fm/music/Norah+Jones/_/Sunrise", "spotify_url": "https://open.spotify.com/track/0Mb9aMlRFTlgCZRmKnV8tG", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"}
-]
-
-ENERGETIC_SONGS = [
-    {"name": "Can't Hold Us", "artist": "Macklemore & Ryan Lewis", "url": "https://www.last.fm/music/Macklemore+&+Ryan+Lewis/_/Can%27t+Hold+Us", "spotify_url": "https://open.spotify.com/track/3bidbhpOYeV4knp8AIu8Xn", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "Wake Me Up", "artist": "Avicii", "url": "https://www.last.fm/music/Avicii/_/Wake+Me+Up", "spotify_url": "https://open.spotify.com/track/4h8VwCb1aGoJxiGLW3Gaz5", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "Shake It Off", "artist": "Taylor Swift", "url": "https://www.last.fm/music/Taylor+Swift/_/Shake+It+Off", "spotify_url": "https://open.spotify.com/track/0cqRj7pUJDkTCEsJkx8snD", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "Eye of the Tiger", "artist": "Survivor", "url": "https://www.last.fm/music/Survivor/_/Eye+of+the+Tiger", "spotify_url": "https://open.spotify.com/track/2KH16WveTQWT6KOG9Rg6e2", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "Levels", "artist": "Avicii", "url": "https://www.last.fm/music/Avicii/_/Levels", "spotify_url": "https://open.spotify.com/track/5UqCQaDshqbIk3pkhy4Pjg", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "Don't Stop Believin'", "artist": "Journey", "url": "https://www.last.fm/music/Journey/_/Don%27t+Stop+Believin%27", "spotify_url": "https://open.spotify.com/track/4bHsxqR3GMrXTxEPLuK5ue", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"},
-    {"name": "Till I Collapse", "artist": "Eminem", "url": "https://www.last.fm/music/Eminem/_/Till+I+Collapse", "spotify_url": "https://open.spotify.com/track/4xkOaSrkexMciUUogZKVTS", "image_url": "https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"}
-]
 
 def get_client_ip(request):
     """Extract user's IP address from request headers."""
@@ -96,84 +56,174 @@ def analyze_text(request):
             return Response(response.json())
         except Exception as conn_error:
             print(f"Connection error: {str(conn_error)}")
-            # If FastAPI is down, return mock data instead
-            print("FastAPI might be down, using mock data instead")
-            return Response({
-                "mood": "neutral" if "happy" not in text.lower() else "positive",
-                "emotion": "joy" if "happy" in text.lower() else "neutral",
-                "intent_context_embedding": [0.0] * 10  # Simplified embedding
-            })
+            # If FastAPI is down, use our improved mock analysis function
+            print("FastAPI might be down, using improved mock analysis instead")
+            
+            # Instead of passing the request object, extract the needed data
+            # and create a new mock request by manually analyzing the text
+            # Analyze the text directly using the same logic as in mock_analyze_text
+            
+            # Create a mock result using the text
+            return perform_mock_analysis(text)
     
     except requests.exceptions.RequestException as e:
         print(f"FastAPI service error: {str(e)}")
         return Response({"error": f"FastAPI service error: {str(e)}"}, status=status.HTTP_502_BAD_GATEWAY)
 
 
-@api_view(["POST"])
-def mock_analyze_text(request):
-    """A mock endpoint that doesn't rely on FastAPI."""
-    text = request.data.get("text", "").strip()
-    if not text:
+def perform_mock_analysis(text):
+    """Helper function with the same logic as mock_analyze_text but accepts text directly."""
+    if not text.strip():
         return Response({"error": "Text input is required"}, status=status.HTTP_400_BAD_REQUEST)
     
-    # Simple mock analysis
-    is_positive = any(word in text.lower() for word in ["happy", "good", "great", "joy", "love", "excited", "cheerful"])
-    is_negative = any(word in text.lower() for word in ["sad", "bad", "hate", "angry", "upset", "depressed", "tired"])
-    is_calm = any(word in text.lower() for word in ["calm", "relaxed", "chill", "peaceful", "quiet", "zen"])
-    is_energetic = any(word in text.lower() for word in ["energy", "workout", "dance", "pumped", "power", "run"])
+    # Expanded keyword lists for better emotion detection
+    positive_keywords = [
+        "happy", "good", "great", "joy", "love", "excited", "cheerful", 
+        "amazing", "wonderful", "fantastic", "awesome", "delighted", "pleased",
+        "thrilled", "content", "satisfied", "enjoy", "fun", "laugh", "smile",
+        "grateful", "thankful", "blessed", "hopeful", "optimistic"
+    ]
     
-    # Determine mood (consistent with FastAPI service outputs)
-    if is_positive:
+    negative_keywords = [
+        "sad", "bad", "hate", "angry", "upset", "depressed", "tired",
+        "awful", "terrible", "horrible", "unhappy", "disappointed", "miserable",
+        "frustrated", "annoyed", "stress", "stressed", "worried", "anxious",
+        "fear", "scared", "lonely", "alone", "hurt", "pain", "grief"
+    ]
+    
+    calm_keywords = [
+        "calm", "relaxed", "chill", "peaceful", "quiet", "zen",
+        "serene", "tranquil", "gentle", "soothing", "mellow", "easy",
+        "harmony", "meditate", "meditation", "breathe", "rest", "relax"
+    ]
+    
+    energetic_keywords = [
+        "energy", "workout", "dance", "pumped", "power", "run",
+        "active", "lively", "dynamic", "vibrant", "intense", "strong",
+        "motivated", "drive", "passion", "fire", "excitement", "thrill"
+    ]
+    
+    # Count matches in each category for more nuanced analysis
+    positive_count = sum(1 for word in positive_keywords if word in text.lower())
+    negative_count = sum(1 for word in negative_keywords if word in text.lower())
+    calm_count = sum(1 for word in calm_keywords if word in text.lower())
+    energetic_count = sum(1 for word in energetic_keywords if word in text.lower())
+    
+    # More specific emotion detection
+    if "love" in text.lower() or "loving" in text.lower():
+        specific_emotion = "love"
+    elif "angry" in text.lower() or "anger" in text.lower() or "mad" in text.lower():
+        specific_emotion = "anger"
+    elif "afraid" in text.lower() or "scared" in text.lower() or "fear" in text.lower():
+        specific_emotion = "fear"
+    elif "surprise" in text.lower() or "surprised" in text.lower() or "shocking" in text.lower():
+        specific_emotion = "surprise"
+    elif "disgust" in text.lower() or "disgusted" in text.lower() or "gross" in text.lower():
+        specific_emotion = "disgust"
+    elif negative_count > 0 and any(word in text.lower() for word in ["sad", "unhappy", "depression", "depressed", "cry", "tears"]):
+        specific_emotion = "sadness"
+    elif positive_count > 0 and any(word in text.lower() for word in ["happy", "joy", "delighted", "pleased", "glad"]):
+        specific_emotion = "joy"
+    elif calm_count > energetic_count and calm_count > 0:
+        specific_emotion = "calm"
+    elif energetic_count > calm_count and energetic_count > 0:
+        specific_emotion = "energetic"
+    else:
+        # Default emotion based on the highest count
+        counts = [
+            (positive_count, "joy"),
+            (negative_count, "sadness"),
+            (calm_count, "calm"),
+            (energetic_count, "energetic")
+        ]
+        _, specific_emotion = max(counts, key=lambda x: x[0]) if any(c > 0 for c, _ in counts) else (0, "neutral")
+    
+    # Determine mood (broader category)
+    if positive_count > negative_count:
         mood = "positive"
-    elif is_negative:
+    elif negative_count > positive_count:
         mood = "negative"
-    elif is_calm:
-        mood = "neutral"
-    elif is_energetic:
-        mood = "neutral"  # FastAPI service doesn't have an "energetic" mood option
+    elif calm_count > energetic_count:
+        mood = "neutral" # Using neutral for calm
+    elif energetic_count > calm_count:
+        mood = "positive" # Using positive for energetic
     else:
         mood = "neutral"
     
-    # Determine emotion (consistent with FastAPI service outputs)
-    if is_positive:
-        emotion = "joy"
-    elif is_negative:
-        emotion = "sadness"
-    elif is_calm:
-        emotion = "neutral" 
-    elif is_energetic:
-        emotion = "neutral"  # For consistency, though ideally this could be "excited"
-    else:
-        emotion = "neutral"
+    # Map specific emotions to the expected emotion values
+    emotion_mapping = {
+        "joy": "joy",
+        "sadness": "sadness",
+        "anger": "anger",
+        "fear": "fear",
+        "surprise": "surprise",
+        "disgust": "disgust",
+        "calm": "neutral", # Map calm to neutral for compatibility
+        "energetic": "joy", # Map energetic to joy for compatibility
+        "love": "joy"      # Map love to joy for compatibility
+    }
+    
+    emotion = emotion_mapping.get(specific_emotion, "neutral")
     
     # Create mock embedding - smaller size to save bandwidth
     embedding = [0.0] * 10  # Simplified embedding
     
-    print(f"Mock analysis results - Mood: {mood}, Emotion: {emotion}")
+    print(f"Mock analysis results - Mood: {mood}, Emotion: {emotion}, Specific: {specific_emotion}")
+    print(f"Keyword matches - Positive: {positive_count}, Negative: {negative_count}, Calm: {calm_count}, Energetic: {energetic_count}")
     
     return Response({
         "mood": mood,
         "emotion": emotion,
+        "specific_emotion": specific_emotion,  # Additional field for more detailed frontend display
         "intent_context_embedding": embedding
     })
 
 
 @api_view(["POST"])
 def analyze_audio(request):
-    """Forward audio file to FastAPI user input service."""
+    """Forward audio/video file to FastAPI user input service."""
     try:
         if "file" not in request.FILES:
-            return Response({"error": "Audio file is required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Audio/video file is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         file = request.FILES["file"]
-        files = {"file": (file.name, file, file.content_type)}
+        
+        # List of supported media types
+        supported_types = [
+            'audio/wav', 'audio/mpeg', 'audio/mp3', 'audio/mp4',
+            'video/mp4', 'video/webm', 'video/quicktime'
+        ]
+        
+        if file.content_type not in supported_types:
+            return Response({
+                "error": f"Unsupported file type. Supported types: {', '.join(supported_types)}"
+            }, status=status.HTTP_400_BAD_REQUEST)
 
-        response = requests.post(f"{USER_INPUT_API_URL}/analyze_audio", files=files)
-        response.raise_for_status()
+        files = {"file": (file.name, file, file.content_type)}
+        
+        print(f"Sending file to FastAPI: {file.name} ({file.content_type})")
+        
+        response = requests.post(
+            f"{USER_INPUT_API_URL}/analyze_audio",
+            files=files,
+            timeout=30  # Increased timeout for larger files
+        )
+        
+        if not response.ok:
+            print(f"FastAPI error response: {response.content}")
+            return Response({
+                "error": "Failed to analyze audio/video content",
+                "details": response.content.decode() if response.content else None
+            }, status=response.status_code)
+            
         return Response(response.json())
 
     except requests.exceptions.RequestException as e:
-        return Response({"error": f"FastAPI service error: {str(e)}"}, status=status.HTTP_502_BAD_GATEWAY)
+        print(f"Error in analyze_audio: {str(e)}")
+        return Response({
+            "error": "Failed to process audio/video",
+            "details": str(e)
+        }, status=status.HTTP_502_BAD_GATEWAY)
 
 
 @api_view(["GET"])
@@ -199,77 +249,181 @@ def fetch_geoip(request):
         return Response({"error": f"FastAPI service error: {str(e)}"}, status=status.HTTP_502_BAD_GATEWAY)
 
 
-@api_view(["POST"])
+@api_view(['POST'])
 def get_song_recommendations(request):
-    """Forward song recommendation request to FastAPI Last.fm service."""
+    """Get song recommendations based on emotion and mood"""
+    # Extract mood and emotion from the request data
+    mood = request.data.get('mood')
+    emotion = request.data.get('emotion')
+
+    if not mood or not emotion:
+        return Response({'error': 'Mood and emotion are required.'}, status=400)
+
+    # Last.fm API key from environment variables
+    LASTFM_API_KEY = os.getenv('LASTFM_API_KEY')
+
+    # Fetch song recommendations from Last.fm based on the mood and emotion
     try:
-        # Get text input, emotion, and mood from request
-        payload = {
-            "query": request.data.get("query", "").strip(),
-            "emotion": request.data.get("emotion"),
-            "mood": request.data.get("mood")
-        }
-        
-        # Ensure at least one of query, emotion, or mood is provided
-        if not any(payload.values()):
+        # Create a search query that combines mood and emotion
+        search_query = f"{mood} {emotion}"  # Combine mood and emotion for better results
+
+        # Use the Last.fm API to search for tracks with the specified tags
+        response = requests.get(
+            f'https://ws.audioscrobbler.com/2.0/',
+            params={
+                'method': 'tag.getTopTracks',
+                'tag': mood,  # Use mood as the tag for searching
+                'api_key': LASTFM_API_KEY,
+                'format': 'json',
+                'limit': 10  # Limit the number of results
+            }
+        )
+
+        if response.status_code != 200:
+            return Response({'error': 'Failed to fetch recommendations from Last.fm.'}, status=response.status_code)
+
+        data = response.json()
+
+        # Check if the response contains track matches
+        if 'tracks' in data and 'track' in data['tracks']:
+            tracks = data['tracks']['track']
+            recommendations = [
+                {
+                    'name': track['name'],
+                    'artist': track['artist']['name'],
+                    'url': track['url'],
+                    'image_url': track['image'][2]['#text'] if track['image'] else None,  # Get medium-sized image
+                }
+                for track in tracks
+            ]
+            return Response({'songs': recommendations})
+
+        # Check if the response contains similar track matches
+        if 'similartracks' in data and 'track' in data['similartracks']:
+            similar_tracks = data['similartracks']['track']
+            recommendations = []
+            
+            for similar_track in similar_tracks:
+                track_name = similar_track['name']
+                artist_name = similar_track['artist']['name']
+                
+                # Create Spotify search URL
+                spotify_query = f"{track_name} {artist_name}".replace(" ", "+")
+                spotify_url = f"https://open.spotify.com/search/{spotify_query}"
+                
+                recommendations.append({
+                    'name': track_name,
+                    'artist': artist_name,
+                    'url': similar_track['url'],
+                    'image_url': similar_track['image'][2]['#text'] if similar_track['image'] else None,
+                    'spotify_url': spotify_url
+                })
+            
+            return Response({'songs': recommendations})
+
+        return Response({'message': 'No songs found matching your mood and emotion.'}, status=404)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+
+@api_view(["POST"])
+def mock_analyze_text(request):
+    """A mock endpoint that doesn't rely on FastAPI."""
+    text = request.data.get("text", "").strip()
+    return perform_mock_analysis(text)
+
+api_key = os.getenv('LASTFM_API_KEY')
+print(f"Last.fm API Key: {api_key}")  # Log the API key for debugging
+
+@api_view(['POST'])
+def get_mood_recommendations(request):
+    """Get song recommendations based on emotion and mood."""
+    try:
+        emotion = request.data.get('emotion', '').lower()
+        mood = request.data.get('mood', '').lower()
+
+        if not emotion or not mood:
             return Response(
-                {"error": "At least one of query, emotion, or mood must be provided"}, 
+                {'error': 'Both emotion and mood are required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+        # Map emotions to genres
+        EMOTION_GENRE_MAPPING = {
+            'joy': ['happy', 'pop', 'dance'],
+            'sadness': ['sad', 'acoustic', 'indie'],
+            'anger': ['rock', 'metal', 'punk'],
+            'fear': ['ambient', 'classical', 'instrumental'],
+            'surprise': ['electronic', 'experimental', 'jazz'],
+            'disgust': ['industrial', 'noise', 'experimental'],
+            'neutral': ['pop', 'rock', 'alternative']
+        }
+
+        # Map moods to modifiers
+        MOOD_MODIFIER = {
+            'positive': ['upbeat', 'energetic', 'happy'],
+            'negative': ['melancholic', 'dark', 'sad'],
+            'neutral': ['moderate', 'chill', 'alternative']
+        }
+
+        # Get genre tags based on emotion
+        genres = EMOTION_GENRE_MAPPING.get(emotion, ['pop'])
+        mood_modifiers = MOOD_MODIFIER.get(mood, ['moderate'])
+
+        # Combine genres and mood modifiers for better recommendations
+        tags = genres + mood_modifiers
         
-        # Print the URL we're calling for debugging
-        print(f"Calling FastAPI at: {LASTFM_API_URL}/recommendations")
-        print(f"Payload: {payload}")
+        # LastFM API parameters
+        api_key = os.getenv('LASTFM_API_KEY', '6c237b08ecb776685d6b1dbea19210ad')
+        base_url = 'http://ws.audioscrobbler.com/2.0/'
         
-        try:
-            # Try to connect to FastAPI
-            response = requests.post(f"{LASTFM_API_URL}/recommendations", 
-                                    json=payload,
-                                    timeout=5)  # Add timeout
-            response.raise_for_status()
-            return Response(response.json())
-        except Exception as conn_error:
-            print(f"Connection error: {str(conn_error)}")
-            # If FastAPI is down, return actual song data instead of generic mock data
-            print("FastAPI might be down, using curated song data instead")
+        # Get recommendations from LastFM
+        songs = []
+        for tag in tags[:2]:  # Limit to first 2 tags for faster response
+            params = {
+                'method': 'tag.gettoptracks',
+                'tag': tag,
+                'api_key': api_key,
+                'format': 'json',
+                'limit': 5
+            }
             
-            # Get emotion or mood
-            emotion = payload.get("emotion", "").lower() 
-            mood = payload.get("mood", "").lower()
-            query = payload.get("query", "").lower()
+            print(f"Fetching LastFM recommendations for tag: {tag}")
+            response = requests.get(base_url, params=params)
             
-            print(f"Using mood: {mood}, emotion: {emotion}, query: {query} to select songs")
-            
-            # Select appropriate song list based on emotion/mood
-            # Map standard emotion values to song categories
-            if emotion == "joy" or mood == "positive" or any(keyword in query for keyword in ["happy", "joy", "upbeat", "cheerful"]):
-                song_list = HAPPY_SONGS
-                message = "Happy songs for your positive mood!"
-            elif emotion == "sadness" or mood == "negative" or any(keyword in query for keyword in ["sad", "down", "blue", "depressed"]):
-                song_list = SAD_SONGS
-                message = "Songs that understand how you feel"
-            elif emotion == "neutral" and any(keyword in query for keyword in ["chill", "relax", "calm", "peaceful"]):
-                song_list = CHILL_SONGS
-                message = "Chill songs to help you relax"
-            elif emotion == "neutral" and any(keyword in query for keyword in ["energy", "workout", "pump", "excited"]):
-                song_list = ENERGETIC_SONGS
-                message = "Energetic songs to boost your mood!"
+            if response.status_code == 200:
+                data = response.json()
+                tracks = data.get('tracks', {}).get('track', [])
+                
+                for track in tracks:
+                    # Create Spotify search URL
+                    track_name = track.get('name', '')
+                    artist_name = track.get('artist', {}).get('name', '')
+                    spotify_query = f"{track_name} {artist_name}".replace(" ", "+")
+                    spotify_url = f"https://open.spotify.com/search/{spotify_query}"
+                    
+                    song = {
+                        'name': track_name,
+                        'artist': artist_name,
+                        'spotify_url': spotify_url,
+                        'lastfm_url': track.get('url'),
+                        'image_url': track.get('image', [{}])[-1].get('#text')  # Get largest image
+                    }
+                    if song not in songs:
+                        songs.append(song)
             else:
-                # Default to a mix of songs if emotion doesn't match 
-                all_songs = HAPPY_SONGS + CHILL_SONGS + ENERGETIC_SONGS
-                song_list = random.sample(all_songs, min(5, len(all_songs)))
-                message = "A mix of songs just for you"
-            
-            # Randomly select 5 songs (or fewer if list has less than 5)
-            selected_songs = random.sample(song_list, min(5, len(song_list)))
-            
-            print(f"Selected {len(selected_songs)} songs based on mood/emotion")
-            
-            return Response({
-                "songs": selected_songs,
-                "message": message
-            })
-    
-    except requests.exceptions.RequestException as e:
-        print(f"FastAPI service error: {str(e)}")
-        return Response({"error": f"FastAPI service error: {str(e)}"}, status=status.HTTP_502_BAD_GATEWAY)
+                print(f"LastFM API error: {response.status_code} - {response.text}")
+
+        # Shuffle and limit results
+        random.shuffle(songs)
+        songs = songs[:10]  # Limit to 10 songs
+
+        return Response({'songs': songs})
+
+    except Exception as e:
+        print(f"Error in get_mood_recommendations: {str(e)}")
+        return Response(
+            {'error': 'Failed to get recommendations'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
