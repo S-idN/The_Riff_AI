@@ -189,7 +189,7 @@ ACCOUNT_ADAPTER = "allauth.account.adapter.DefaultAccountAdapter"
 SOCIALACCOUNT_ADAPTER = "allauth.socialaccount.adapter.DefaultSocialAccountAdapter"
 SOCIALACCOUNT_PROVIDERS = {
     "spotify": {
-        "SCOPE": ["user-read-email", "user-read-private"],
+        "SCOPE": ["user-read-email", "user-read-private", "playlist-modify-public", "playlist-modify-private"],
         "AUTH_PARAMS": {"show_dialog": "true"},
         "APP": {
             "client_id": os.getenv("SPOTIFY_CLIENT_ID"),

@@ -154,3 +154,124 @@ def refresh_access_token(refresh_token):
 
     except requests.exceptions.JSONDecodeError:
         return {"error": "Invalid response from Spotify"}
+
+
+@api_view(["POST"])
+def create_spotify_playlist(request):
+    """Create a new playlist in the user's Spotify account and add songs to it"""
+    token = request.headers.get("Authorization")
+    if not token:
+        return Response({"error": "Token is missing in Authorization header"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Extract Bearer token
+    access_token = token.split(" ")[1] if token.startswith("Bearer ") else None
+    if not access_token:
+        return Response({"error": "Invalid token format"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Get user's Spotify ID
+    headers = {"Authorization": f"Bearer {access_token}"}
+    profile_response = requests.get(SPOTIFY_PROFILE_URL, headers=headers)
+    
+    if profile_response.status_code != 200:
+        logger.error(f"Failed to fetch user profile: {profile_response.text}")
+        return Response({"error": "Failed to fetch user profile"}, status=profile_response.status_code)
+    
+    user_id = profile_response.json().get("id")
+    if not user_id:
+        return Response({"error": "Could not get user ID"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Create playlist
+    playlist_data = request.data
+    playlist_name = playlist_data.get("name", "New Playlist")
+    playlist_description = playlist_data.get("description", "Created by Riff AI")
+    is_public = playlist_data.get("public", True)
+    songs = playlist_data.get("songs", [])  # Get songs from request data
+
+    create_playlist_url = f"https://api.spotify.com/v1/users/{user_id}/playlists"
+    playlist_payload = {
+        "name": playlist_name,
+        "description": playlist_description,
+        "public": is_public
+    }
+
+    create_response = requests.post(
+        create_playlist_url,
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        },
+        json=playlist_payload
+    )
+
+    if create_response.status_code != 201:
+        logger.error(f"Failed to create playlist: {create_response.text}")
+        return Response(
+            {"error": "Failed to create playlist", "details": create_response.json()},
+            status=create_response.status_code
+        )
+
+    playlist_id = create_response.json().get("id")
+    if not playlist_id:
+        return Response({"error": "Could not get playlist ID"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Add songs to the playlist
+    if songs:
+        # Search for each song on Spotify and get its URI
+        track_uris = []
+        for song in songs:
+            try:
+                search_url = "https://api.spotify.com/v1/search"
+                search_params = {
+                    "q": f"track:{song['name']} artist:{song['artist']}",
+                    "type": "track",
+                    "limit": 1
+                }
+                search_response = requests.get(
+                    search_url,
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    params=search_params
+                )
+                
+                if search_response.status_code == 200:
+                    search_data = search_response.json()
+                    if search_data.get("tracks", {}).get("items"):
+                        track_uri = search_data["tracks"]["items"][0]["uri"]
+                        track_uris.append(track_uri)
+                        logger.info(f"Found track URI for {song['name']}: {track_uri}")
+                    else:
+                        logger.warning(f"No track found for {song['name']} by {song['artist']}")
+                else:
+                    logger.error(f"Failed to search for track {song['name']}: {search_response.text}")
+            except Exception as e:
+                logger.error(f"Error searching for track {song['name']}: {str(e)}")
+
+        # Add tracks to playlist in batches of 100 (Spotify's limit)
+        if track_uris:
+            add_tracks_url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
+            for i in range(0, len(track_uris), 100):
+                batch = track_uris[i:i + 100]
+                try:
+                    add_response = requests.post(
+                        add_tracks_url,
+                        headers={
+                            "Authorization": f"Bearer {access_token}",
+                            "Content-Type": "application/json"
+                        },
+                        json={"uris": batch}
+                    )
+                    
+                    if add_response.status_code != 201:
+                        logger.error(f"Failed to add tracks batch: {add_response.text}")
+                        return Response(
+                            {"error": "Failed to add tracks to playlist", "details": add_response.json()},
+                            status=add_response.status_code
+                        )
+                    logger.info(f"Successfully added batch of {len(batch)} tracks")
+                except Exception as e:
+                    logger.error(f"Error adding tracks batch: {str(e)}")
+                    return Response(
+                        {"error": "Failed to add tracks to playlist", "details": str(e)},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+
+    return Response(create_response.json())
