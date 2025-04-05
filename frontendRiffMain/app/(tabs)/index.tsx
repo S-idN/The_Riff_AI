@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import SpotifyLoginButton from "@/components/SpotifyLoginButton";
 import {
   Text,
   View,
@@ -11,7 +12,9 @@ import {
   Linking,
   ScrollView,
   Image,
+  Animated,
 } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { Link, useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import TypeWriter from "react-native-typewriter";
@@ -27,6 +30,11 @@ import EmotionCard from "../../components/EmotionCard";
 import { motion } from "framer-motion";
 import { AnimatePresence } from "tamagui";
 import { CreatePlaylistButton } from "../../components/CreatePlaylistButton";
+import TamaguiTest from "@/components/TamaguiTest";
+import AutoCarousel from "@/components/AutoCarousel";
+import Visualiser from "@/components/Visualiser";
+import AnimViz from "@/components/AnimViz";
+import SubHeader from "@/components/SubHeader";
 
 interface Song {
   name: string;
@@ -47,6 +55,13 @@ export default function Index() {
   const [weather, setWeather] = useState<any>(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [weatherError, setWeatherError] = useState<string | null>(null);
+  const sampleNetworkImages = [
+    "https://via.placeholder.com/400x300/FF0000/FFFFFF?text=Image+1",
+    "https://via.placeholder.com/400x300/00FF00/FFFFFF?text=Image+2",
+    "https://via.placeholder.com/400x300/0000FF/FFFFFF?text=Image+3",
+    "https://via.placeholder.com/400x300/FFFF00/000000?text=Image+4",
+    "https://via.placeholder.com/400x300/FF00FF/FFFFFF?text=Image+5",
+  ];
   const [emotionData, setEmotionData] = useState<{
     emotion: string;
     mood: string;
@@ -537,136 +552,6 @@ export default function Index() {
         }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Animated Background Elements */}
-        <View
-          className="fixed inset-0 w-screen overflow-hidden backdrop-blur-[100px]"
-          style={{
-            position: "fixed",
-            height: contentHeight * 1.2,
-            minHeight: screenHeight,
-            ...(Platform.OS === "web" && screenWidth > 768
-              ? {
-                  left: "50%",
-                  transform: [{ translateX: "-50%" }],
-                  maxWidth: 1920,
-                }
-              : {}),
-          }}
-        >
-          <View
-            className="absolute w-[200vw] rounded-[40%] opacity-15 blur-2xl"
-            style={{
-              height: contentHeight * 1.2,
-              top: -100 + Math.sin(gradientPosition * 0.02) * 30,
-              left:
-                Platform.OS === "web" && screenWidth > 768
-                  ? "-25%"
-                  : -50 + Math.cos(gradientPosition * 0.02) * 30,
-              transform: [
-                { rotate: `${gradientPosition * 0.5}deg` },
-                { scale: 1 + Math.sin(gradientPosition * 0.01) * 0.2 },
-                { skewX: `${Math.sin(gradientPosition * 0.015) * 5}deg` },
-                { skewY: `${Math.cos(gradientPosition * 0.015) * 5}deg` },
-              ],
-              borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.02)",
-            }}
-          >
-            <LinearGradient
-              colors={[
-                `rgba(99,102,241,${
-                  0.1 + Math.sin(gradientPosition * 0.01) * 0.03
-                })`,
-                `rgba(79,70,229,${
-                  0.1 + Math.cos(gradientPosition * 0.01) * 0.03
-                })`,
-                `rgba(59,130,246,${
-                  0.1 + Math.sin(gradientPosition * 0.01) * 0.03
-                })`,
-              ]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={{
-                width: "100%",
-                height: "100%",
-                borderRadius: "40%",
-                filter: "blur(100px)",
-              }}
-            />
-          </View>
-          <View
-            className="absolute w-[180vw] rounded-[45%] opacity-15 blur-2xl"
-            style={{
-              height: contentHeight * 1.2,
-              bottom: -80 + Math.cos(gradientPosition * 0.02) * 40,
-              right:
-                Platform.OS === "web" && screenWidth > 768
-                  ? "-25%"
-                  : -30 + Math.sin(gradientPosition * 0.02) * 40,
-              transform: [
-                { rotate: `${-gradientPosition * 0.3}deg` },
-                { scale: 1 + Math.cos(gradientPosition * 0.015) * 0.15 },
-                { skewX: `${Math.cos(gradientPosition * 0.02) * 7}deg` },
-                { skewY: `${Math.sin(gradientPosition * 0.02) * 7}deg` },
-              ],
-              borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.02)",
-            }}
-          >
-            <LinearGradient
-              colors={[
-                `rgba(59,130,246,${
-                  0.1 + Math.cos(gradientPosition * 0.01) * 0.03
-                })`,
-                `rgba(79,70,229,${
-                  0.1 + Math.sin(gradientPosition * 0.01) * 0.03
-                })`,
-                `rgba(99,102,241,${
-                  0.1 + Math.cos(gradientPosition * 0.01) * 0.03
-                })`,
-              ]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={{
-                width: "100%",
-                height: "100%",
-                borderRadius: "45%",
-                filter: "blur(100px)",
-              }}
-            />
-          </View>
-          <View
-            className="absolute inset-0 backdrop-blur-3xl"
-            style={{
-              opacity: 0.05 + Math.sin(gradientPosition * 0.01) * 0.02,
-              height: contentHeight * 1.2,
-              minHeight: screenHeight,
-            }}
-          >
-            <LinearGradient
-              colors={[
-                `rgba(79,70,229,${
-                  0.05 + Math.sin(gradientPosition * 0.01) * 0.02
-                })`,
-                "transparent",
-                `rgba(59,130,246,${
-                  0.05 + Math.cos(gradientPosition * 0.01) * 0.02
-                })`,
-              ]}
-              start={{
-                x: 0.5 + Math.sin(gradientPosition * 0.01) * 0.2,
-                y: 0.5 + Math.cos(gradientPosition * 0.01) * 0.2,
-              }}
-              end={{ x: 1, y: 1 }}
-              style={{
-                width: "100%",
-                height: "100%",
-                minHeight: screenHeight,
-                filter: "blur(80px)",
-              }}
-            />
-          </View>
-        </View>
         <View
           ref={contentRef}
           className="w-full items-center relative z-10"
@@ -680,7 +565,6 @@ export default function Index() {
               : {}),
           }}
         >
-          {/* Header Section with Parallax */}
           <View
             className="w-full items-center py-12 relative"
             style={{
@@ -691,59 +575,21 @@ export default function Index() {
               ],
             }}
           >
-            <View style={{ alignItems: "center", flexDirection: "row" }}>
-              <TypeWriter
-                typing={1}
-                maxDelay={100}
-                style={{
-                  fontSize: RFPercentage(3.5),
-                  color: "#e5d8fc",
-                  fontWeight: "bold",
-                  textAlign: "center",
-                  fontFamily: "sans-serif",
-                }}
-              >
-                Riff.AI
-              </TypeWriter>
-              <Text
-                style={{
-                  opacity: underscoreVisible ? 1 : 0,
-                  fontSize: RFPercentage(2),
-                  color: "#e5d8fc",
-                }}
-              >
-                _
-              </Text>
-            </View>
-            <Text
-              className="text-xl text-purple-300/90 text-center px-4 backdrop-blur-sm"
-              style={{ fontFamily: "monospace" }}
-            >
-              Discover music that matches your mood
-            </Text>
+            <View className="flex-1 justify-center items-center"></View>
           </View>
-
           {/* Login/Input Section */}
           {!username ? (
-            <TouchableOpacity
-              className="bg-gradient-to-r from-[#191414] to-[#0f0c0c] px-12 py-6 rounded-full shadow-lg transform transition-all duration-300 active:scale-95 hover:shadow-2xl"
-              style={{
-                transform: [
-                  {
-                    translateY: -scrollY * 0.1,
-                  },
-                ],
-              }}
-              onPress={handleSpotifyLogin}
-            >
-              <Text className="text-[#1ed760] font-bold text-xl">
-                Login with Spotify
-              </Text>
-            </TouchableOpacity>
+            <View className="flex-1 justify-between items-center">
+              <TamaguiTest />
+              <SubHeader />
+              <SpotifyLoginButton />
+            </View>
           ) : (
+            //LOGGED OUT ENDS HERE
+            //LOGGED IN STARTS HERE
             <AnimatePresence>
               <YStack
-                space="$8"
+                space="$6"
                 className="w-full items-center px-4"
                 enterStyle={{ opacity: 0, scale: 0.9, y: 20 }}
                 exitStyle={{ opacity: 0, scale: 0.9, y: -20 }}
@@ -878,7 +724,7 @@ export default function Index() {
                     animation="quick"
                     className="w-full max-w-[600px]"
                   >
-                    <View className="bg-white/5 backdrop-blur-xl p-8 rounded-2xl border border-white/10 shadow-2xl overflow-hidden">
+                    <View className="bg-white/5 backdrop-blur-xl p-8 mt-14 rounded-2xl border border-white/10 shadow-2xl overflow-hidden">
                       <View className="relative">
                         <View className="absolute inset-0 bg-gradient-to-br from-purple-600/20 to-blue-600/20 blur-2xl" />
                         <View className="relative z-10">
@@ -943,7 +789,7 @@ export default function Index() {
                     exitStyle={{ opacity: 0, scale: 0.9, y: -20 }}
                     animation="quick"
                   >
-                    <Text className="text-3xl text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-500 font-bold mb-6">
+                    <Text className="text-3xl text-transparent bg-clip-text bg-gradient-to-r text-center from-purple-400 to-blue-500 font-bold mb-6">
                       Recommended Songs
                     </Text>
                     {songRecommendations.map((song, index) => (

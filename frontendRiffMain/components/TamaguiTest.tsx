@@ -1,35 +1,45 @@
-import { Button, Text, YStack } from "tamagui";
+import React from "react";
+import { View } from "react-native";
+import { Text } from "tamagui";
+import Visualiser from "./Visualiser";
 
-export default function TamaguiTest() {
+const TamaguiTest = () => {
   return (
-    <YStack
-      padding={16}
-      margin={8}
-      backgroundColor="$background"
-      borderRadius={8}
-      alignItems="center"
-      width="90%"
-      alignSelf="center"
+    <View
+      style={{ transform: [{ scale: 2.5 }], marginTop: 40 }}
+      className="items-center justify-center"
     >
-      <Text color="$color" fontSize={20} fontWeight="bold">
-        Tamagui in Riff.AI! 🎵
-      </Text>
-      <Text color="$color" fontSize={14} marginTop={4} textAlign="center">
-        You can now use Tamagui components for your music app's UI
-      </Text>
-      <Button
-        marginTop={16}
-        backgroundColor="#4a3b78"
-        color="white"
-        size="$4"
-        hoverStyle={{ backgroundColor: "#5a4b88" }}
-        pressStyle={{ backgroundColor: "#3a2b68" }}
-        borderRadius={8}
-        paddingHorizontal={16}
-        onPress={() => alert("Tamagui button pressed!")}
-      >
-        Tamagui Button
-      </Button>
-    </YStack>
+      <View className="relative">
+        {/* White text with 70% opacity */}
+        <View className="relative scale-150">
+          {/* Gradient Text behind */}
+          <Text
+            fontFamily="Inter"
+            fontSize={48}
+            fontWeight="bold"
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-0 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400"
+            opacity={1}
+          >
+            Riff.ai
+          </Text>
+
+          {/* Visualiser (bars in middle layer) */}
+          <Visualiser />
+
+          {/* Main white text over top */}
+          <Text
+            fontFamily="Inter"
+            fontSize={48}
+            fontWeight="bold"
+            opacity={0.9}
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white z-10"
+          >
+            Riff.ai
+          </Text>
+        </View>
+      </View>
+    </View>
   );
-}
+};
+
+export default TamaguiTest;
