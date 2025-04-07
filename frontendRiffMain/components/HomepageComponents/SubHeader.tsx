@@ -5,7 +5,7 @@ const SubHeader = () => {
   return (
     <View style={{ transform: [{ scale: 1.15 }] }}>
       {/* Centered Section */}
-      <View width="100%" alignItems="center" paddingBottom="$3">
+      <View marginTop="$7" width="100%" alignItems="center" paddingBottom="$3">
         <XStack
           space="$6"
           alignItems="center"
@@ -43,7 +43,7 @@ const SubHeader = () => {
           <Image
             source={require("../../assets/200w.gif")}
             width={350}
-            height={350}
+            height={250}
             borderRadius={16}
             alt="Riff AI Preview"
           />

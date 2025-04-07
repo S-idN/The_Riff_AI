@@ -38,6 +38,10 @@ import SubHeader from "@/components/HomepageComponents/SubHeader";
 import Header from "@/components/HomepageComponents/Header";
 import AnalyzeTextButton from "@/components/AnalyseTextButton";
 import RecordVoiceButton from "@/components/RecordVoiceButton";
+import MobileSubHeader from "@/components/HomepageComponents/MobileSubHeader";
+import { useWindowDimensions } from "react-native";
+import MobileHeader from "@/components/HomepageComponents/MobileHeader";
+import GeoLocationButton from "@/components/GeoLocationButton";
 
 interface Song {
   name: string;
@@ -49,6 +53,8 @@ interface Song {
 export default function Index() {
   const [username, setUsername] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const { width } = useWindowDimensions();
+  const isMobileDimensions = width < 768;
   const { display_name: paramsDisplayName, username: paramsUsername } =
     useLocalSearchParams<{ display_name?: string; username?: string }>();
   const [token, setToken] = useState<string | null>(null);
@@ -92,6 +98,10 @@ export default function Index() {
   const SPOTIFY_CLIENT_ID = "738024374a41414383cec879914473f6";
   const REDIRECT_URI = "http://localhost:8081/auth-callback";
   const router = useRouter();
+
+  const goToUserPage = () => {
+    router.push("/user_page"); // Correct path
+  };
 
   // Handle Spotify login
   const handleSpotifyLogin = () => {
@@ -415,18 +425,23 @@ export default function Index() {
 
   useEffect(() => {
     let ticking = false;
-    const handleScroll = () => {
+    const handleScroll = (event: {
+      nativeEvent: { contentOffset: { y: any } };
+    }) => {
       if (!ticking) {
-        window.requestAnimationFrame(() => {
-          setScrollY(window.scrollY);
+        requestAnimationFrame(() => {
+          const yOffset = event.nativeEvent.contentOffset.y;
+          setScrollY(yOffset);
           ticking = false;
         });
         ticking = true;
       }
     };
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    // Return cleanup function to reset ticking when component unmounts
+    return () => {
+      ticking = false;
+    };
   }, []);
 
   // Add gradient animation
@@ -518,6 +533,13 @@ export default function Index() {
                   </Text>
                 </View>
                 <TouchableOpacity
+                  onPress={goToUserPage}
+                  className="flex-row items-center space-x-3 p-3 rounded-lg hover:bg-white/5 transition-colors duration-200"
+                >
+                  <Text className="text-white font-medium">User Profile</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
                   onPress={handleLogout}
                   className="flex-row items-center space-x-3 p-3 rounded-lg hover:bg-white/5 transition-colors duration-200"
                 >
@@ -582,9 +604,9 @@ export default function Index() {
           </View>
           {/* Login/Input Section */}
           {!username ? (
-            <View className="flex-1 justify-between items-center">
-              <Header />
-              <SubHeader />
+            <View className="flex-1 flex-col items-center">
+              {isMobileDimensions ? <MobileHeader /> : <Header />}
+              {isMobileDimensions ? <MobileSubHeader /> : <SubHeader />}
             </View>
           ) : (
             //LOGGED OUT ENDS HERE
@@ -716,6 +738,11 @@ export default function Index() {
                           <Text className="text-2xl text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-500 font-bold mb-6 text-center">
                             Your Mood Analysis
                           </Text>
+                          <GeoLocationButton
+                            emotion={emotionData.emotion}
+                            mood={emotionData.mood}
+                            token={token}
+                          />
                           <View className="space-y-4">
                             <View className="bg-white/5 p-4 rounded-xl border border-white/10">
                               <Text className="text-purple-300/90 text-lg mb-2">

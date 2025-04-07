@@ -69,6 +69,15 @@ export default function RootLayout() {
           },
         }}
       />
+      <Tabs.Screen
+        name="user_page"
+        options={{
+          headerShown: false,
+          tabBarStyle: {
+            display: "none", // Hide the tab bar on the login screen
+          },
+        }}
+      />
     </Tabs>
   );
 }
