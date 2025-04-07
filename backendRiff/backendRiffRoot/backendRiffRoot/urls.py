@@ -16,10 +16,21 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import include, path
-from userauth.views import geoip_view 
+from userauth.views import geoip_view
+from rest_framework import routers
+from userauth import views  # Import views from the userauth app
+
+router = routers.DefaultRouter()
+router.register(r'users', views.UsersViewSet)
+router.register(r'playlists', views.PlaylistsViewSet)
+router.register(r'songs', views.SongsViewSet)
+router.register(r'playlist-songs', views.PlaylistSongsViewSet)
+router.register(r'context-info', views.ContextinfoViewSet)
+router.register(r'user-preferences', views.UserPreferencesViewSet)
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path('db/', include(router.urls)),
     path("api/", include("api_gateway.urls")),
     path("api/auth/", include("userauth.urls")),  # Handles login, registration, and Spotify auth
     path("auth/", include("allauth.urls")),  # Required for OAuth2 flows

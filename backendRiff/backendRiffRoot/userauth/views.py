@@ -6,6 +6,17 @@ from dj_rest_auth.registration.views import SocialLoginView
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework import viewsets
+from .models import Users, Playlists, Songs, PlaylistSongs, Contextinfo, UserPreferences
+from .serializers import (
+    UsersSerializer,
+    PlaylistsSerializer,
+    SongsSerializer,
+    PlaylistSongsSerializer,
+    ContextinfoSerializer,
+    UserPreferencesSerializer,
+)
+
 import logging
 
 # Load environment variables
@@ -275,3 +286,27 @@ def create_spotify_playlist(request):
                     )
 
     return Response(create_response.json())
+
+class UsersViewSet(viewsets.ModelViewSet):
+    queryset = Users.objects.all()
+    serializer_class = UsersSerializer
+
+class PlaylistsViewSet(viewsets.ModelViewSet):
+    queryset = Playlists.objects.all()
+    serializer_class = PlaylistsSerializer
+
+class SongsViewSet(viewsets.ModelViewSet):
+    queryset = Songs.objects.all()
+    serializer_class = SongsSerializer
+
+class PlaylistSongsViewSet(viewsets.ModelViewSet):
+    queryset = PlaylistSongs.objects.all()
+    serializer_class = PlaylistSongsSerializer
+
+class ContextinfoViewSet(viewsets.ModelViewSet):
+    queryset = Contextinfo.objects.all()
+    serializer_class = ContextinfoSerializer
+
+class UserPreferencesViewSet(viewsets.ModelViewSet):
+    queryset = UserPreferences.objects.all()
+    serializer_class = UserPreferencesSerializer
