@@ -19,7 +19,12 @@ try:
     whisper_model = whisper.load_model("base").to(device)  # Change to "base" or "medium" for better accuracy
 
     # Load NLP models (Updated for higher accuracy)
-    mood_pipeline = pipeline("sentiment-analysis", model="cardiffnlp/twitter-roberta-base-sentiment-latest", device=0 if torch.cuda.is_available() else -1)
+    mood_pipeline = pipeline(
+        "sentiment-analysis",
+        model="C:/Users/Sajith kumar/Desktop/Riff_AI/The_Riff_AI/Training/scripts/fine_tuned_goemotions",
+        tokenizer="C:/Users/Sajith kumar/Desktop/Riff_AI/The_Riff_AI/Training/scripts/fine_tuned_goemotions",
+        device=0 if torch.cuda.is_available() else -1
+    )
     emotion_pipeline = pipeline("text-classification", model="j-hartmann/emotion-english-distilroberta-base", top_k=None, device=0 if torch.cuda.is_available() else -1)
     intent_context_model = SentenceTransformer("all-mpnet-base-v2")
 except Exception as e:

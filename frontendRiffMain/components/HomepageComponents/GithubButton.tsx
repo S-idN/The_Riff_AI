@@ -9,25 +9,20 @@ import {
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { LinearGradient } from "expo-linear-gradient";
-import MaskedView from "@react-native-masked-view/masked-view";
 import Animated, {
   useSharedValue,
   withTiming,
   useAnimatedStyle,
 } from "react-native-reanimated";
 
-const SpotifyLogo = require("../assets/Spotify-Logo.png");
-const CLIENT_ID = "738024374a41414383cec879914473f6";
-const REDIRECT_URI = "http://localhost:8081/auth-callback";
+const GitHubLogo = require("../../assets/Github-Logo.png");
 
-const handleLogin = () => {
-  const url = `https://accounts.spotify.com/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(
-    REDIRECT_URI
-  )}&scope=user-read-email user-read-private playlist-modify-public playlist-modify-private`;
+const handleGitHubRedirect = () => {
+  const url = "https://github.com/S-idN/The_Riff_AI/tree/temp_fix";
   Linking.openURL(url);
 };
 
-const SpotifyLoginButton = () => {
+const GitHubLoginButton = () => {
   const hover = useSharedValue(0);
   const gesture = Gesture.Hover()
     .onBegin(() => (hover.value = withTiming(1, { duration: 300 })))
@@ -35,19 +30,18 @@ const SpotifyLoginButton = () => {
 
   const gradientOverlay = useAnimatedStyle(() => ({ opacity: hover.value }));
   const blackText = useAnimatedStyle(() => ({
-    opacity: hover.value, // 0 = fully gradient, 1 = fully black
+    opacity: hover.value,
   }));
 
   return (
     <View className="flex-0 mb-5">
       <GestureDetector gesture={gesture}>
         <Pressable
-          onPress={handleLogin}
+          onPress={handleGitHubRedirect}
           className="rounded-xl overflow-hidden shadow-md"
         >
-          {/* Background gradient */}
           <LinearGradient
-            colors={["#191414", "#121212"]}
+            colors={["#0D1117", "#161B22"]}
             className="rounded-xl px-6 py-3 items-center justify-center relative"
           >
             {/* Hover overlay */}
@@ -63,9 +57,9 @@ const SpotifyLoginButton = () => {
               />
             </Animated.View>
 
-            {/* Spotify logo */}
+            {/* GitHub logo */}
             <Image
-              source={SpotifyLogo}
+              source={GitHubLogo}
               style={{
                 width: 32,
                 height: 32,
@@ -74,16 +68,16 @@ const SpotifyLoginButton = () => {
               }}
             />
 
-            {/* Button text: gradient → black on hover */}
+            {/* Button text */}
             <View className="relative">
               <Text className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">
-                Login with Spotify
+                See our code
               </Text>
               <Animated.Text
                 style={blackText}
                 className="absolute top-0 left-0 text-lg font-bold text-black"
               >
-                Login with Spotify
+                See our code
               </Animated.Text>
             </View>
           </LinearGradient>
@@ -93,4 +87,4 @@ const SpotifyLoginButton = () => {
   );
 };
 
-export default SpotifyLoginButton;
+export default GitHubLoginButton;

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import SpotifyLoginButton from "@/components/SpotifyLoginButton";
+import SpotifyLoginButton from "@/components/HomepageComponents/SpotifyLoginButton";
 import {
   Text,
   View,
@@ -30,11 +30,14 @@ import EmotionCard from "../../components/EmotionCard";
 import { motion } from "framer-motion";
 import { AnimatePresence } from "tamagui";
 import { CreatePlaylistButton } from "../../components/CreatePlaylistButton";
-import TamaguiTest from "@/components/TamaguiTest";
+import TamaguiTest from "@/components/HomepageComponents/TamaguiTest";
 import AutoCarousel from "@/components/AutoCarousel";
 import Visualiser from "@/components/Visualiser";
 import AnimViz from "@/components/AnimViz";
-import SubHeader from "@/components/SubHeader";
+import SubHeader from "@/components/HomepageComponents/SubHeader";
+import Header from "@/components/HomepageComponents/Header";
+import AnalyzeTextButton from "@/components/AnalyseTextButton";
+import RecordVoiceButton from "@/components/RecordVoiceButton";
 
 interface Song {
   name: string;
@@ -580,9 +583,8 @@ export default function Index() {
           {/* Login/Input Section */}
           {!username ? (
             <View className="flex-1 justify-between items-center">
-              <TamaguiTest />
+              <Header />
               <SubHeader />
-              <SpotifyLoginButton />
             </View>
           ) : (
             //LOGGED OUT ENDS HERE
@@ -621,35 +623,18 @@ export default function Index() {
                     />
 
                     <View className="flex-row justify-center space-x-4">
-                      <TouchableOpacity
-                        className="flex-1 bg-gradient-to-r from-blue-600 to-blue-800 p-4 rounded-xl shadow-lg transform transition-all duration-300 active:scale-95 hover:shadow-2xl"
+                      <AnalyzeTextButton
                         onPress={analyzeText}
                         disabled={isAnalyzing || !inputValue.trim()}
-                        style={{
-                          opacity: !inputValue.trim() || isAnalyzing ? 0.7 : 1,
-                        }}
-                      >
-                        <Text className="text-white font-bold text-lg text-center">
-                          {isAnalyzing ? "Analyzing..." : "Analyze Text"}
-                        </Text>
-                      </TouchableOpacity>
+                        isAnalyzing={isAnalyzing}
+                      />
 
-                      <TouchableOpacity
-                        className="flex-1 bg-gradient-to-r from-purple-600 to-purple-800 p-4 rounded-xl shadow-lg transform transition-all duration-300 active:scale-95 hover:shadow-2xl"
-                        onPress={isRecording ? stopRecording : startRecording}
-                        disabled={isAnalyzing}
-                        style={{
-                          opacity: isAnalyzing ? 0.7 : 1,
-                        }}
-                      >
-                        <Text className="text-white font-bold text-lg text-center">
-                          {isAnalyzing
-                            ? "Analyzing..."
-                            : isRecording
-                            ? "Stop Recording"
-                            : "Record Voice"}
-                        </Text>
-                      </TouchableOpacity>
+                      <RecordVoiceButton
+                        isRecording={isRecording}
+                        isAnalyzing={isAnalyzing}
+                        startRecording={startRecording}
+                        stopRecording={stopRecording}
+                      />
                     </View>
                   </View>
                 </View>

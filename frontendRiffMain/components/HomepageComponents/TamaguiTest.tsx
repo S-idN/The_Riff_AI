@@ -1,12 +1,12 @@
 import React from "react";
 import { View } from "react-native";
 import { Text } from "tamagui";
-import Visualiser from "./Visualiser";
+import Visualiser from "../Visualiser";
 
 const TamaguiTest = () => {
   return (
     <View
-      style={{ transform: [{ scale: 2.5 }], marginTop: 40 }}
+      style={{ transform: [{ scale: 2.5 }] }}
       className="items-center justify-center"
     >
       <View className="relative">

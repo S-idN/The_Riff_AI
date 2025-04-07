@@ -1,6 +1,6 @@
 import React from "react";
 import { render, fireEvent, waitFor } from "@testing-library/react-native";
-import SpotifyLoginButton from "./SpotifyLoginButton";
+import SpotifyLoginButton from "./HomepageComponents/SpotifyLoginButton";
 import { Linking } from "react-native";
 
 // Mock Linking to prevent real navigation
