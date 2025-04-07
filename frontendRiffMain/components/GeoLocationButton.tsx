@@ -20,6 +20,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { Link, Href } from "expo-router";
+import CreateLocationPlaylistButton from "./CreateLocationPlaylistButton";
 
 // Animated components
 const AnimatedText = Animated.createAnimatedComponent(Text);
@@ -372,6 +373,29 @@ const GeoLocationButton: React.FC<GeoLocationButtonProps> = ({
             </Text>
           )}
       </YStack>
+      <CreateLocationPlaylistButton
+        emotion={emotion} // Emotion passed as prop to GeoLocationButton
+        country={displayedLocation?.country} // Country from GeoLocationButton's state (use optional chaining)
+        token={token} // Token passed as prop to GeoLocationButton
+        songs={
+          recommendations?.map((song) => ({
+            // Map recommendations state (use optional chaining)
+            name: song.name,
+            artist: song.artist,
+          })) || []
+        } // Provide default empty array if recommendations is null
+        onSuccess={() => {
+          console.log("Playlist created successfully!");
+          // Option: Display success temporarily using the existing 'error' state (as non-error)
+          // setError("Playlist created successfully!"); // Note: This might be confusing if error styling is applied
+          // Option: Or simply log, no visual update in this component
+        }}
+        onError={(errorMsg) => {
+          console.error("Failed to create playlist:", errorMsg);
+          // Use the existing setError state to display playlist creation errors
+          setError(`Playlist Error: ${errorMsg}`);
+        }}
+      />
       {/* --- END Display Area --- */}
     </YStack>
   );

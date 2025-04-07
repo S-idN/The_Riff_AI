@@ -1,3 +1,4 @@
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -368,58 +369,53 @@ LOCATION_TAG_MAPPING = {
 }
 
 def call_lastfm(method, params, api_key, base_url='http://ws.audioscrobbler.com/2.0/'):
-    """Helper to make Last.fm API calls and handle basic errors."""
+    # ... (Corrected function from previous step) ...
     base_params = { 'api_key': api_key, 'format': 'json', 'method': method }
     all_params = {**base_params, **params}
     response = None
     try:
         response = requests.get(base_url, params=all_params, timeout=10)
         response.raise_for_status()
-        data = response.json() # ValueError possible here
-        if 'error' in data:
-            error_code = data.get('error'); error_message = data.get('message', 'Unknown Last.fm error')
-            logger.error(f"LFM API Error ({error_code}): {error_message} for {method} with {params}")
-            return None
+        data = response.json()
+        if 'error' in data: logger.error(f"LFM Error: {data.get('message')} ({method})"); return None
         return data
     except requests.exceptions.Timeout:
-        logger.warning(f"LFM timeout: {method} {params}")
+        logger.warning(f"LFM timeout: {method} {params}") # Log params too
         return None
+
     except requests.exceptions.RequestException as e:
         status_code = e.response.status_code if e.response is not None else 'N/A'
         logger.error(f"LFM request error: {method} ({status_code}): {e}")
+        # Safely log response body if it exists
         if e.response is not None:
-            logger.error(f"LFM Body: {e.response.text[:200]}...") # Log snippet safely
+            try:
+                body_snippet = e.response.text[:200] if e.response.text else "(Empty Body)"
+            except Exception:
+                body_snippet = "(Error reading response body)"
+            logger.error(f"LFM Body: {body_snippet}")
         return None
-    except ValueError: # Specifically handle JSON decode error
+
+    except ValueError:
         snippet = "(No response object)"
+        # Check the response variable captured before the try block ended
         if response is not None:
-            try: snippet = response.text[:200] if response.text else "(Empty Body)"
-            except Exception: snippet = "(Error reading response text)"
+            try:
+                snippet = response.text[:200] if response.text else "(Empty Body)"
+            except Exception:
+                snippet = "(Error reading response text)"
         logger.error(f"LFM JSON decode error: {method}. Snippet: {snippet}")
         return None
+
     except Exception as e:
         logger.exception(f"LFM unexpected error: {method}") # Includes traceback
         return None
-
-# --- Helper: Get Tags for a Track (Keep this) ---
-def get_track_tags(track_name, artist_name, api_key):
-    """Fetches top tags for a specific track."""
-    params = {'track': track_name, 'artist': artist_name, 'autocorrect': 1}
-    tag_data = call_lastfm('track.getTopTags', params, api_key)
-    if tag_data and tag_data.get('toptags'):
-        tags_section = tag_data['toptags'].get('tag')
-        if isinstance(tags_section, list):
-            return set(t.get('name').lower() for t in tags_section if t.get('name'))
-        elif isinstance(tags_section, dict): # Handle single tag case
-            return {tags_section.get('name').lower()} if tags_section.get('name') else set()
-    logger.debug(f"No valid tags found for {track_name} by {artist_name}")
-    return set()
 
 
 @api_view(['POST'])
 def get_mood_recommendations(request):
     """
-    Get recommendations using Location Artists + Track Mood Tag filtering.
+    Get recommendations blending Location & Mood artists using a weighted score.
+    Fetches top track per artist.
     """
     try:
         emotion = request.data.get('emotion', '').lower()
@@ -430,7 +426,7 @@ def get_mood_recommendations(request):
         logger.info(f"Request: emotion='{emotion}', mood='{mood}', country='{country}'")
         if not emotion or not mood: return Response({'error': 'Emotion and mood required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # --- Determine Target Tags (Location and Mood/Emotion) ---
+        # --- Determine Tags to Query ---
         location_tags_to_query = []
         using_location_tags = False
         if country_code:
@@ -441,106 +437,126 @@ def get_mood_recommendations(request):
                  logger.info(f"Selected location tags: {location_tags_to_query}")
                  using_location_tags = True
             else: logger.warning(f"No location tags defined for '{country_code}'.")
-        else: logger.info("No country_code provided.")
+        else: logger.info("No country_code provided - relying on mood tags.")
 
         emotion_tags = EMOTION_GENRE_MAPPING.get(emotion, [])
         mood_tags = MOOD_MODIFIER.get(mood, [])
-        mood_emotion_tags_target_set = set(emotion_tags + mood_tags)
-        if not mood_emotion_tags_target_set: mood_emotion_tags_target_set = {'pop'}
-        logger.info(f"Target mood/emotion tags for filtering: {mood_emotion_tags_target_set}")
+        mood_emotion_tags = list(set(emotion_tags + mood_tags))
+        if not mood_emotion_tags: mood_emotion_tags = ['pop']
+        num_mood_tags = min(len(mood_emotion_tags), 3) # Use up to 3 mood tags
+        mood_tags_to_query = random.sample(mood_emotion_tags, num_mood_tags)
+        logger.info(f"Selected mood/emotion tags: {mood_tags_to_query}")
 
-        # Tags for initial artist search: prioritize location
-        tags_for_artist_search = location_tags_to_query if using_location_tags else list(mood_emotion_tags_target_set)[:2] # Fallback to 2 mood tags
-        if not tags_for_artist_search: tags_for_artist_search = ['pop'] # Absolute fallback
-        logger.info(f"Using tags for initial artist search: {tags_for_artist_search}")
 
-        # --- Fetch Artists based ONLY on selected search tags ---
+        # --- Fetch Artists Concurrently (Location and Mood Tags Separately) ---
         api_key = os.getenv('LASTFM_API_KEY', 'YOUR_LASTFM_API_KEY')
         if api_key == 'YOUR_LASTFM_API_KEY': return Response({'error': 'Server config error'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        candidate_artists_set = set()
-        MAX_ARTISTS_PER_TAG = 60 # Fetch enough candidates
+        top_geo_artists = set()
+        top_mood_artists = set()
+        MAX_ARTISTS_PER_TAG = 100 # Fetch a large pool for each tag
 
-        with ThreadPoolExecutor(max_workers=len(tags_for_artist_search)) as executor:
-             # ... (fetch artists using tag.getTopArtists for tags_for_artist_search) ...
-             future_to_tag = { executor.submit(call_lastfm, 'tag.getTopArtists', {'tag': tag, 'limit': MAX_ARTISTS_PER_TAG}, api_key): tag for tag in tags_for_artist_search }
-             for future in as_completed(future_to_tag):
-                  tag = future_to_tag[future]; result = future.result()
-                  if result:
-                     topartists_data = result.get('topartists')
-                     if isinstance(topartists_data, dict):
-                          artists = topartists_data.get('artist', [])
-                          artist_names = set(a.get('name') for a in artists if a.get('name'))
-                          candidate_artists_set.update(artist_names)
-                          logger.info(f"Found {len(artist_names)} for tag '{tag}'. Total unique: {len(candidate_artists_set)}")
-                     else: logger.warning(f"No 'artist' list for tag '{tag}'.")
-                  else: logger.warning(f"Last.fm call failed for tag '{tag}'.")
+        tags_to_fetch_geo = location_tags_to_query # Use selected location tags
+        tags_to_fetch_mood = mood_tags_to_query # Use selected mood tags
 
+        num_workers = len(tags_to_fetch_geo) + len(tags_to_fetch_mood)
+        if num_workers == 0: return Response({'error': 'No tags to query'}, status=status.HTTP_400_BAD_REQUEST)
 
-        candidate_artists_list = list(candidate_artists_set)
-        random.shuffle(candidate_artists_list)
-        logger.info(f"Candidate pool size (based on {'location' if using_location_tags else 'mood'} tags): {len(candidate_artists_list)}.")
+        logger.info(f"Fetching artists for {len(tags_to_fetch_geo)} location tags and {len(tags_to_fetch_mood)} mood tags...")
+        with ThreadPoolExecutor(max_workers=max(num_workers, 2)) as executor:
+            futures = {}
+            for tag in tags_to_fetch_geo:
+                 futures[executor.submit(call_lastfm, 'tag.getTopArtists', {'tag': tag, 'limit': MAX_ARTISTS_PER_TAG}, api_key)] = 'geo'
+            for tag in tags_to_fetch_mood:
+                 futures[executor.submit(call_lastfm, 'tag.getTopArtists', {'tag': tag, 'limit': MAX_ARTISTS_PER_TAG}, api_key)] = 'mood'
+
+            for future in as_completed(futures):
+                category = futures[future]
+                result = future.result()
+                if result:
+                    topartists_data = result.get('topartists')
+                    if isinstance(topartists_data, dict):
+                        artists = topartists_data.get('artist', [])
+                        artist_names = set(a.get('name') for a in artists if a.get('name'))
+                        if category == 'geo': top_geo_artists.update(artist_names)
+                        elif category == 'mood': top_mood_artists.update(artist_names)
+                    # ... log warnings ...
+                # ... log warnings ...
+
+        logger.info(f"Found {len(top_geo_artists)} unique geo artists and {len(top_mood_artists)} unique mood artists.")
+
+        # --- Score and Select Candidate Artists ---
+        artist_scores = defaultdict(int)
+        geo_weight = 2 # Higher weight for being found via location tag
+        mood_weight = 1 # Lower weight for being found via mood tag
+
+        for artist in top_geo_artists:
+            artist_scores[artist] += geo_weight
+        for artist in top_mood_artists:
+            artist_scores[artist] += mood_weight
+
+        # Sort artists by score (descending), then shuffle within scores for variety
+        sorted_artists = sorted(artist_scores.items(), key=lambda item: item[1], reverse=True)
+
+        # Group artists by score
+        grouped_artists = defaultdict(list)
+        for artist, score in sorted_artists:
+             grouped_artists[score].append(artist)
+
+        # Create final candidate list by taking from highest score groups first, shuffling within groups
+        candidate_artists_list = []
+        for score in sorted(grouped_artists.keys(), reverse=True):
+             group = grouped_artists[score]
+             random.shuffle(group)
+             candidate_artists_list.extend(group)
+
+        logger.info(f"Total unique artists considered: {len(candidate_artists_list)}. Top scored sample: {candidate_artists_list[:10]}")
 
         if not candidate_artists_list:
-             return Response({'songs': [], 'message': f'Could not find artists for tags: {tags_for_artist_search}'})
+             logger.warning("No candidate artists found after scoring.")
+             return Response({'songs': [], 'message': 'Could not find relevant artists.'})
 
-        # --- Fetch Top Tracks & Filter by MOOD Tags ---
+        # --- Fetch Top Track (Limit=1) for Candidates ---
         songs = []
+        seen_artists = set()
         MAX_SONGS_TO_RETURN = 10
-        MAX_TRACKS_PER_ARTIST_TO_CHECK = 3 # Check top 3 tracks per artist
-        # Process enough artists to likely get 10 valid songs after filtering
-        artists_to_process = candidate_artists_list[:MAX_SONGS_TO_RETURN * 6]
+        artists_to_query = candidate_artists_list[:MAX_SONGS_TO_RETURN * 5] # Query buffer
 
-        logger.info(f"Fetching/filtering tracks for {len(artists_to_process)} artists...")
+        logger.info(f"Fetching top track for up to {len(artists_to_query)} artists based on score...")
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            # ... (submit tasks for artist.getTopTracks, limit=1) ...
+            future_to_artist = { executor.submit(call_lastfm, 'artist.getTopTracks', {'artist': artist, 'limit': 1, 'autocorrect': 1}, api_key): artist for artist in artists_to_query }
+            processed_artists_count = 0
+            for future in as_completed(future_to_artist):
+                 # ... (process results, check limit, handle errors) ...
+                  if len(songs) >= MAX_SONGS_TO_RETURN:
+                     for f in future_to_artist: f.cancel(); break
+                  artist_name_submitted = future_to_artist[future]; processed_artists_count += 1
+                  try: track_data = future.result()
+                  except Exception as e: logger.error(f"Err getting track for '{artist_name_submitted}': {e}"); continue
+                  if not track_data or not track_data.get('toptracks'): continue
+                  corrected_artist_name = track_data['toptracks'].get('@attr', {}).get('artist', artist_name_submitted)
+                  if corrected_artist_name in seen_artists: continue # UNIQUE ARTIST constraint
+                  tracks = track_data.get('toptracks', {}).get('track', [])
+                  if tracks:
+                      track = tracks[0]; track_name = track.get('name')
+                      if track_name and corrected_artist_name:
+                           if corrected_artist_name in seen_artists: continue # Double check
+                           # Basic word filter
+                           problematic_words = ['vagina', 'nigger', 'faggot', 'cunt', 'explicit', 'sex', 'fuck'];
+                           if any(word in track_name.lower() for word in problematic_words): logger.warning(f"Skipping track '{track_name}' (filter)"); continue
+                           # Create song dict and add
+                           spotify_query = f"{track_name} {corrected_artist_name}".replace(" ", "+"); spotify_url = f"https://open.spotify.com/search/{spotify_query}"
+                           image_list = track.get('image', [{}]); image_url = image_list[-1].get('#text') if image_list else None
+                           song = { 'name': track_name, 'artist': corrected_artist_name, 'spotify_url': spotify_url, 'lastfm_url': track.get('url'), 'image_url': image_url }
+                           songs.append(song)
+                           seen_artists.add(corrected_artist_name)
+                           logger.debug(f"Added: '{track_name}' by '{corrected_artist_name}' ({len(songs)}/{MAX_SONGS_TO_RETURN}).")
 
-        # Use nested ThreadPool or simplify for now: Fetch tracks, then tags sequentially within loop
-        processed_artist_count = 0
-        for artist_name in artists_to_process:
-            if len(songs) >= MAX_SONGS_TO_RETURN: break
-            processed_artist_count += 1
-            logger.debug(f"Processing artist {processed_artist_count}: {artist_name}")
 
-            # Fetch top N tracks
-            track_data = call_lastfm('artist.getTopTracks', {'artist': artist_name, 'limit': MAX_TRACKS_PER_ARTIST_TO_CHECK, 'autocorrect': 1}, api_key)
-            if not track_data or not track_data.get('toptracks'): continue
-            corrected_artist_name = track_data['toptracks'].get('@attr', {}).get('artist', artist_name)
-
-            tracks = track_data.get('toptracks', {}).get('track', [])
-            if not tracks: continue
-
-            for track in tracks:
-                 if len(songs) >= MAX_SONGS_TO_RETURN: break # Stop checking tracks if we have enough total songs
-
-                 track_name = track.get('name')
-                 if not track_name: continue
-
-                 # Check track tags against MOOD/EMOTION tags
-                 track_tags = get_track_tags(track_name, corrected_artist_name, api_key)
-                 if not mood_emotion_tags_target_set.intersection(track_tags):
-                      logger.debug(f" -> Skipping '{track_name}', tags ({track_tags}) don't match mood ({mood_emotion_tags_target_set}).")
-                      continue # Skip track if no tag overlap
-
-                 # Check problematic words filter
-                 problematic_words = ['vagina', 'nigger', 'faggot', 'cunt', 'explicit', 'sex', 'fuck'];
-                 if any(word in track_name.lower() for word in problematic_words): logger.warning(f"Skipping track '{track_name}' (filter)"); continue
-
-                 # Passed filters, check if artist already added (unique artist constraint)
-                 if corrected_artist_name in {s['artist'] for s in songs}:
-                      logger.debug(f" -> Skipping '{track_name}', already have song by '{corrected_artist_name}'.")
-                      continue # Skip if we already have a song by this artist
-
-                 # Add song
-                 logger.info(f" -> MATCH FOUND: '{track_name}' by '{corrected_artist_name}' (Mood Tags: {track_tags.intersection(mood_emotion_tags_target_set)})")
-                 spotify_query = f"{track_name} {corrected_artist_name}".replace(" ", "+"); spotify_url = f"https://open.spotify.com/search/{spotify_query}"
-                 image_list = track.get('image', [{}]); image_url = image_list[-1].get('#text') if image_list else None
-                 song = { 'name': track_name, 'artist': corrected_artist_name, 'spotify_url': spotify_url, 'lastfm_url': track.get('url'), 'image_url': image_url }
-                 songs.append(song)
-                 # Don't break inner loop here - check other tracks by this artist too if needed later
-            # End track loop
-
-        logger.info(f"Finished processing. Collected {len(songs)} songs matching criteria.")
-        # If we still don't have 10, it means not enough tracks passed the filter
-        # No need to limit again if loop breaks correctly
+        logger.info(f"Finished processing {processed_artists_count} artists. Collected {len(songs)} songs.")
+        songs = songs[:MAX_SONGS_TO_RETURN]
+        # No final shuffle needed if we processed artists by score order
 
         return Response({'songs': songs})
 
