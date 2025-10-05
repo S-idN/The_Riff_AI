@@ -76,11 +76,6 @@ Riff AI delivers a seamless experience across devices:
 * Text or audio input to detect mood
 * Instant emotion analysis feedback
 * Curated playlist preview and export to Spotify
-
-| Home Screen             | Input Page               | Generated Playlist          |
-| ----------------------- | ------------------------ | --------------------------- |
-| ![Home](assets/SS1.png) | ![Input](assets/SS2.png) | ![Playlist](assets/SS3.png) |
-
 ---
 
 ## 🧪 Testing
