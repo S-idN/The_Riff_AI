@@ -38,7 +38,7 @@
 ---
 
 ![Homepage](SS7.png)
-![Results](SS5.png)
+![Results](SS10.png)
 ![Emotion Detection](SS2.png)
 
 ## 🧩 Setup & Development
