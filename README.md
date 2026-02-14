@@ -37,6 +37,10 @@
 
 ---
 
+![Homepage](SS7.png)
+![Results](SS5.png)
+![Emotion Detection](SS2.png)
+
 ## 🧩 Setup & Development
 
 ### Clone the repository
