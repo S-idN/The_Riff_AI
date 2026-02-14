@@ -1,22 +1,22 @@
-# 🎵 Riff AI
+# Riff AI
 
 **Riff AI** is a transformer-based, emotion-centric music recommendation system designed to generate playlists aligned with a user’s emotional state. Unlike traditional recommendation systems that rely solely on collaborative or content-based filtering, Riff AI leverages modern **transformer architectures** and **contrastive learning** to understand emotional context and provide truly personalized music recommendations.
 
 ---
 
-## 🚀 Features
+##  Features
 
-* 🎧 **Emotion-based playlist generation** from text or audio input
-* 🧠 **Transformer-powered emotion detection** using models like DistilBERT and RoBERTa
-* 🔊 **Speech-to-text transcription** with Whisper for audio inputs
-* 💡 **Dual-tower embedding model** for matching user emotions and song features
-* ⚡ **Seamless integration** between React Native frontend, Django orchestration, and FastAPI AI inference
-* 🌦️ **Context-aware recommendation** (optional) using features like weather, time, and location
-* 🪄 **Cross-platform** — compatible with both Android and iOS via Expo
+*  **Emotion-based playlist generation** from text or audio input
+*  **Transformer-powered emotion detection** using models like DistilBERT and RoBERTa
+*  **Speech-to-text transcription** with Whisper for audio inputs
+*  **Dual-tower embedding model** for matching user emotions and song features
+*  **Seamless integration** between React Native frontend, Django orchestration, and FastAPI AI inference
+*  **Context-aware recommendation** (optional) using features like weather, time, and location
+*  **Cross-platform** — compatible with both Android and iOS via Expo
 
 ---
 
-## 🧰 Tech Stack
+##  Tech Stack
 
 * **Frontend:** React Native + Expo
 * **Backend:** Django (API orchestration, Spotify OAuth, and playlist management)
@@ -69,7 +69,7 @@ npm start  # or expo start
 
 ---
 
-## 📱 App Overview
+##  App Overview
 
 Riff AI delivers a seamless experience across devices:
 
@@ -77,25 +77,6 @@ Riff AI delivers a seamless experience across devices:
 * Instant emotion analysis feedback
 * Curated playlist preview and export to Spotify
 ---
-
-## 🧪 Testing
-
-* ✅ Unit tests for authentication and playlist generation modules
-* 🔗 End-to-end integration between frontend, FastAPI, and Django
-* 📱 Validated across Android and iOS simulators
-
----
-
-## 🧭 Future Enhancements
-
-* 🎶 Add in-app database for improved offline caching
-* 🧩 Integrate fine-tuned custom emotion models
-* 🎙️ Expand to include voice-driven interaction and commentary
-* 💾 Introduce local storage for user history and analytics
-
----
-
-## 🩵 Contributing
 
 Contributions, ideas, and feature suggestions are welcome!
 Submit issues or pull requests to help improve Riff AI.
